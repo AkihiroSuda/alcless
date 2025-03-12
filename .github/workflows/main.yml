@@ -21,3 +21,8 @@ jobs:
           set -eux
           make
           sudo make install
+      - run: alclessctl create default
+      - run: alcless brew install xz
+      - run: alcless pwd
+      - run: alcless xz README.md
+      - run: ls -l README*

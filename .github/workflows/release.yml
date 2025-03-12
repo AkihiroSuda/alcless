@@ -1,0 +1,65 @@
+# Forked from https://github.com/containerd/nerdctl/blob/v0.8.1/.github/workflows/release.yml
+# Apache License 2.0
+
+name: Release
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'master'
+jobs:
+  release:
+    env:
+      GOTOOLCHAIN: local
+    runs-on: macos-15
+    timeout-minutes: 20
+    # The maximum access is "read" for PRs from public forked repos
+    # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+    permissions:
+      contents: write  # for releases
+      id-token: write  # for provenances
+      attestations: write  # for provenances
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # https://github.com/reproducible-containers/repro-get/issues/3
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.x
+      - name: "Make artifacts"
+        run: make artifacts
+      - name: "SHA256SUMS"
+        run: |
+          cat _artifacts/SHA256SUMS
+      - name: "The sha256sum of the SHA256SUMS file"
+        run: |
+          (cd _artifacts; sha256sum SHA256SUMS)
+      - name: "Prepare the release note"
+        run: |
+          shasha=$(sha256sum _artifacts/SHA256SUMS | awk '{print $1}')
+          cat <<-EOF | tee /tmp/release-note.txt
+          (Changes to be documented)
+
+          - - -
+          The binaries were built automatically on GitHub Actions.
+          The build log is available for 90 days: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The sha256sum of the SHA256SUMS file itself is \`${shasha}\` .
+          EOF
+      - uses: actions/attest-build-provenance@v2
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        with:
+          subject-path: _artifacts/*
+      - name: "Create release"
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF##*/}"
+          gh release create -F /tmp/release-note.txt --draft --title "${tag}" "${tag}" _artifacts/*

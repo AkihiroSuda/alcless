@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - 'release/**'
+  pull_request:
+jobs:
+  main:
+    env:
+      GOTOOLCHAIN: local
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.x
+      - name: Install
+        run: |
+          set -eux
+          make
+          sudo make install

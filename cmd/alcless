@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Forked from https://github.com/lima-vm/lima/blob/v1.0.6/cmd/lima
+# SPDX-FileCopyrightText: Copyright The Lima Authors
+# SPDX-License-Identifier: Apache-2.0
+
+set -eu -o pipefail
+
+BINDIR="$(dirname "$(realpath "$0")")"
+
+: "${ALCLESS_INSTANCE:=default}"
+: "${ALCLESSCTL:="${BINDIR}"/alclessctl}"
+
+if [ "$#" -ge 1 ]; then
+	case "$1" in
+	"-h" | "--help")
+		base="$(basename "$0")"
+		echo "Usage: ${base} [COMMAND...]"
+		echo
+		echo "${base} is an alias for \`alclessctl shell ${ALCLESS_INSTANCE}\`."
+		echo
+		echo "See \`alclessctl shell --help\` for further information."
+
+		exit 0
+		;;
+	"-v" | "--version")
+		exec "${ALCLESSCTL}" "$@"
+		;;
+	-*)
+		# TODO: support passing these flags automatically
+		echo >&2 "ERROR: Did you mean: ${ALCLESSCTL} shell $1 ${ALCLESS_INSTANCE} ..."
+		exit 1
+		;;
+	"create" | "delete" | "list" | "shell")
+		echo >&2 "WARNING: Perhaps you meant: ${ALCLESSCTL} $1 ..."
+		;;
+	esac
+fi
+
+set - "${ALCLESS_INSTANCE}" "$@"
+exec "${ALCLESSCTL}" shell "$@"

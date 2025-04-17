@@ -9,6 +9,7 @@ set -eu -o pipefail
 BINDIR="$(dirname "$(realpath "$0")")"
 
 : "${ALCLESS_INSTANCE:=default}"
+: "${ALCLESS_WORKDIR:=}"
 : "${ALCLESSCTL:="${BINDIR}"/alclessctl}"
 ARGS=()
 
@@ -43,6 +44,9 @@ if [ "$#" -ge 1 ]; then
 	esac
 fi
 
+if [ -n "${ALCLESS_WORKDIR}" ]; then
+	ARGS+=("--workdir"="${ALCLESS_WORKDIR}")
+fi
 ARGS+=("${ALCLESS_INSTANCE}")
 ARGS+=("$@")
 exec "${ALCLESSCTL}" shell "${ARGS[@]}"

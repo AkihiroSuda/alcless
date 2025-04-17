@@ -59,6 +59,10 @@ To run a command, without rsyncing the current directory:
 ```
 alclessctl shell --plain default bash
 ```
+or
+```
+alcless --plain bash
+```
 
 To remove the sandbox:
 ```

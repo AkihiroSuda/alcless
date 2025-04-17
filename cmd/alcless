@@ -10,6 +10,7 @@ BINDIR="$(dirname "$(realpath "$0")")"
 
 : "${ALCLESS_INSTANCE:=default}"
 : "${ALCLESSCTL:="${BINDIR}"/alclessctl}"
+ARGS=()
 
 if [ "$#" -ge 1 ]; then
 	case "$1" in
@@ -27,9 +28,14 @@ if [ "$#" -ge 1 ]; then
 		exec "${ALCLESSCTL}" "$@"
 		;;
 	-*)
-		# TODO: support passing these flags automatically
-		echo >&2 "ERROR: Did you mean: ${ALCLESSCTL} shell $1 ${ALCLESS_INSTANCE} ..."
-		exit 1
+		for f in "$@"; do
+			case "$f" in
+			-*)
+				shift
+				ARGS+=("$f")
+				;;
+			esac
+		done
 		;;
 	"create" | "delete" | "list" | "shell")
 		echo >&2 "WARNING: Perhaps you meant: ${ALCLESSCTL} $1 ..."
@@ -37,5 +43,6 @@ if [ "$#" -ge 1 ]; then
 	esac
 fi
 
-set - "${ALCLESS_INSTANCE}" "$@"
-exec "${ALCLESSCTL}" shell "$@"
+ARGS+=("${ALCLESS_INSTANCE}")
+ARGS+=("$@")
+exec "${ALCLESSCTL}" shell "${ARGS[@]}"

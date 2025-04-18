@@ -45,6 +45,7 @@ func New() *cobra.Command {
 	flags := cmd.Flags()
 	flags.SetInterspersed(false)
 	flags.String("workdir", "", "specify working directory")
+	flags.String("shell", "", "Shell interpreter, e.g. /bin/bash")
 	flags.Bool("read-only", false, "disable syncing back modified files")
 
 	return cmd
@@ -84,17 +85,29 @@ func action(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get user %q: %w", instUser, err)
 	}
 
+	flagShell, err := flags.GetString("shell")
+	if err != nil {
+		return err
+	}
+
 	var (
 		cmdExe  string
 		cmdArgs []string
 	)
 	if len(args) > 1 {
+		if flagShell != "" {
+			slog.WarnContext(ctx, "Ignoring --shell flag", "shell", flagShell)
+		}
 		cmdExe = args[1]
 		cmdArgs = args[2:]
 	} else {
-		cmdExe, err = userutil.ReadAttribute(ctx, instUser, userutil.AttributeUserShell)
-		if err != nil {
-			return err
+		if flagShell != "" {
+			cmdExe = flagShell
+		} else {
+			cmdExe, err = userutil.ReadAttribute(ctx, instUser, userutil.AttributeUserShell)
+			if err != nil {
+				return err
+			}
 		}
 		if cmdExe == "" {
 			slog.WarnContext(ctx, "no shell was found, falling back to /bin/sh", "instUser", instUser)

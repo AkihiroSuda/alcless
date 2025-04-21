@@ -9,6 +9,8 @@ set -eu -o pipefail
 BINDIR="$(dirname "$(realpath "$0")")"
 
 : "${ALCLESS_INSTANCE:=default}"
+: "${ALCLESS_SHELL:=}"
+: "${ALCLESS_WORKDIR:=}"
 : "${ALCLESSCTL:="${BINDIR}"/alclessctl}"
 ARGS=()
 
@@ -19,6 +21,12 @@ if [ "$#" -ge 1 ]; then
 		echo "Usage: ${base} [COMMAND...]"
 		echo
 		echo "${base} is an alias for \`alclessctl shell ${ALCLESS_INSTANCE}\`."
+		echo
+		echo "Recognized environment variables:"
+		echo "- ALCLESS_INSTANCE"
+		echo "- ALCLESS_SHELL"
+		echo "- ALCLESS_WORKDIR"
+		echo "- ALCLESSCTL"
 		echo
 		echo "See \`alclessctl shell --help\` for further information."
 
@@ -43,6 +51,12 @@ if [ "$#" -ge 1 ]; then
 	esac
 fi
 
+if [ -n "${ALCLESS_SHELL}" ]; then
+	ARGS+=("--shell"="${ALCLESS_SHELL}")
+fi
+if [ -n "${ALCLESS_WORKDIR}" ]; then
+	ARGS+=("--workdir"="${ALCLESS_WORKDIR}")
+fi
 ARGS+=("${ALCLESS_INSTANCE}")
 ARGS+=("$@")
 exec "${ALCLESSCTL}" shell "${ARGS[@]}"

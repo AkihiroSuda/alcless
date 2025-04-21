@@ -1,6 +1,12 @@
+// Portions from https://github.com/lima-vm/lima/blob/v1.1.0-beta.0/cmd/limactl/main.go
+//
+// SPDX-FileCopyrightText: Copyright The Lima Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -74,11 +80,27 @@ func newRootCommand() *cobra.Command {
 	flags.Bool("debug", envutil.Bool("DEBUG", false), "debug mode [$DEBUG]")
 	// Follows limactl's CLI convention, although "tty" was a sort of misnomer.
 	flags.Bool("tty", term.IsTerminal(int(os.Stdout.Fd())), "enable TUI interactions. Defaults to true when stdout is a terminal. Set to false for automation.")
+	flags.BoolP("yes", "y", false, "Alias of --tty=false")
 	flags.Bool("plain", false, "plain mode (no Homebrew integration, file syncing, etc.)")
 
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if debug, _ := cmd.Flags().GetBool("debug"); debug {
+		flags := cmd.Flags()
+		if debug, _ := flags.GetBool("debug"); debug {
 			logLevel.Set(slog.LevelDebug)
+		}
+		if flags.Changed("yes") && flags.Changed("tty") {
+			return errors.New("cannot use both --tty and --yes flags at the same time")
+		}
+		if flags.Changed("yes") {
+			// Sets the value of the yesValue flag by using the yes flag.
+			yesValue, _ := flags.GetBool("yes")
+			if yesValue {
+				// Sets to the default value false
+				err := flags.Set("tty", "false")
+				if err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	}

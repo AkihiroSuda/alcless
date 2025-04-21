@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 1.24.x
+      - name: Unit tests
+        run: go test -v ./...
       - name: Install
         run: |
           set -eux

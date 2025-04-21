@@ -116,6 +116,10 @@ Because Linux and FreeBSD already have containers.
 
 #### How does Alcoholless relate to Lima?
 - Alcoholless: run Homebrew in a separate user (not a VM, nor a container)
-- Lima: run a Linux VM, particularly for running containers
+- [Lima](https://lima-vm.io/): run a Linux VM, particularly for running containers
 
-The `alclessctl` CLI is designed to mimic the `limactl` CLI for an easier learning.
+The `alclessctl` CLI is designed to mimic the `limactl` CLI for an easier learning,
+however, Alcoholless does not use Lima under the hood currently.
+
+Eventually, Alcoholless may incorporate Lima for stronger isolation using VMs,
+when we can figure out how to automate the initialiation steps of macOS VMs (See ["Why not use VM?"](#why-not-use-vm)).

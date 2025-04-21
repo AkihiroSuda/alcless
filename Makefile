@@ -3,6 +3,7 @@ PREFIX ?= /usr/local
 DEST := $(shell echo "$(DESTDIR)/$(PREFIX)" | sed 's:///*:/:g; s://*$$::')
 
 VERSION ?=$(shell git describe --match 'v[0-9]*' --dirty='.m' --always --tags)
+VERSION_TRIMMED := $(VERSION:v%=%)
 VERSION_SYMBOL := github.com/AkihiroSuda/alcless/cmd/alclessctl/version.Version
 
 export SOURCE_DATE_EPOCH ?= $(shell git log -1 --pretty=%ct)
@@ -59,11 +60,13 @@ define touch_recursive
 	find "$(1)" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) {} +
 endef
 
+to_uname_m = $(shell echo $(1) | sed 's/amd64/x86_64/')
+
 define make_artifact
 	make clean
 	GOARCH=$(1) make
 	$(call touch_recursive,_output)
-	$(TAR) -C _output/ --no-xattrs --numeric-owner --uid 0 --gid 0 --option !timestamp -czvf _artifacts/alcless-$(VERSION).$(1).tar.gz ./
+	$(TAR) -C _output/ --no-xattrs --numeric-owner --uid 0 --gid 0 --option !timestamp -czvf _artifacts/alcless-$(VERSION_TRIMMED)-Darwin-$(call to_uname_m,$(1)).tar.gz ./
 endef
 
 # Needs to be executed on macOS

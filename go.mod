@@ -5,7 +5,7 @@ go 1.23.0
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0
-	github.com/containerd/containerd/v2 v2.0.5
+	github.com/containerd/containerd/v2 v2.1.0
 	github.com/lmittmann/tint v1.0.7
 	github.com/sethvargo/go-password v0.3.1
 	github.com/spf13/cobra v1.9.1 // gomodjail:unconfined
@@ -15,8 +15,8 @@ require (
 
 require (
 	github.com/containerd/errdefs v1.0.0 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 )

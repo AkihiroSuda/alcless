@@ -6,7 +6,7 @@ go 1.23.0
 require (
 	al.essio.dev/pkg/shellescape v1.6.0
 	github.com/containerd/containerd/v2 v2.0.5
-	github.com/lmittmann/tint v1.0.7
+	github.com/lmittmann/tint v1.1.0
 	github.com/sethvargo/go-password v0.3.1
 	github.com/spf13/cobra v1.9.1 // gomodjail:unconfined
 	golang.org/x/term v0.31.0

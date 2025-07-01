@@ -9,7 +9,7 @@ require (
 	github.com/lmittmann/tint v1.1.2
 	github.com/sethvargo/go-password v0.3.1
 	github.com/spf13/cobra v1.9.1 // gomodjail:unconfined
-	golang.org/x/term v0.31.0
+	golang.org/x/term v0.32.0
 	gotest.tools/v3 v3.5.2
 )
 

@@ -38,6 +38,11 @@ func Installed(ctx context.Context, instUser string) error {
 
 func InstallCmds(ctx context.Context, instUser string) []*exec.Cmd {
 	cmds := []*exec.Cmd{
+		// Remove system-wide Homebrew (/opt/homebrew/bin) from the PATH
+		// Needed since Homebrew 4.5.9 (July 8, 2025)
+		// https://github.com/AkihiroSuda/alcless/issues/23
+		sudo.Cmd(ctx, instUser, "", "sh", []string{"-c", `echo 'PATH="$(echo "$PATH" | sed -e s@/opt/homebrew/bin:@@g)"; export PATH' | tee -a "${HOME}/.bash_profile" | tee -a "${HOME}/.bashrc" | tee -a "${HOME}/.zprofile" >> "${HOME}/.zshenv"`}),
+
 		sudo.Cmd(ctx, instUser, "", "git", []string{"clone", "https://github.com/Homebrew/brew", "homebrew"}),
 		sudo.Cmd(ctx, instUser, "", "sh", []string{"-c", `echo 'eval "$("${HOME}/homebrew/bin/brew" shellenv)"' | tee -a "${HOME}/.bash_profile" >> "${HOME}/.zshenv"`}),
 	}

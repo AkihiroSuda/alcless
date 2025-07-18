@@ -6,17 +6,26 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 
 	"github.com/AkihiroSuda/alcless/pkg/sudo"
 )
 
-func InstalledCmd(ctx context.Context, instUser string) *exec.Cmd {
-	return sudo.Cmd(ctx, instUser, "", "brew", []string{"--version"})
+func InstalledCmd(ctx context.Context, instUser, homeDir string) *exec.Cmd {
+	return sudo.Cmd(ctx, instUser, "", filepath.Join(homeDir, "homebrew/bin/brew"), []string{"--version"})
 }
 
 func Installed(ctx context.Context, instUser string) error {
+	instUserInfo, err := user.Lookup(instUser)
+	if err != nil {
+		return err
+	}
+	if instUserInfo.HomeDir == "" {
+		return fmt.Errorf("user %q does not have the home directory", instUser)
+	}
 	var stderr bytes.Buffer
-	cmd := InstalledCmd(ctx, instUser)
+	cmd := InstalledCmd(ctx, instUser, instUserInfo.HomeDir)
 	cmd.Stderr = &stderr
 	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
 	b, err := cmd.Output()

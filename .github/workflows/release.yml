@@ -52,7 +52,7 @@ jobs:
 
           The sha256sum of the SHA256SUMS file itself is \`${shasha}\` .
           EOF
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v3
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         with:
           subject-path: _artifacts/*

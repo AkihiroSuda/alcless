@@ -24,7 +24,7 @@ jobs:
       id-token: write  # for provenances
       attestations: write  # for provenances
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # https://github.com/reproducible-containers/repro-get/issues/3
           fetch-depth: 0

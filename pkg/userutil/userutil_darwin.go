@@ -32,6 +32,32 @@ func Users(ctx context.Context) ([]string, error) {
 	return res, scanner.Err()
 }
 
+func GroupUsers(ctx context.Context, group string) ([]string, error) {
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "dscl", ".", "list", "/Groups/"+group, "GroupMembership")
+	cmd.Stderr = &stderr
+	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
+	b, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String())
+	}
+
+	lines := strings.Split(string(b), "\n")
+	var res []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) >= 1 && parts[0] == "GroupMembership:" {
+			users := strings.Fields(parts[1])
+			res = append(res, users...)
+		}
+	}
+	return res, nil
+}
+
 type Attribute string
 
 const (
@@ -88,5 +114,32 @@ func DeleteUserCmds(ctx context.Context, instUser string) ([]*exec.Cmd, error) {
 		exec.CommandContext(ctx, "sudo", "sysadminctl", "-deleteUser", instUser, "-secure"),
 		exec.CommandContext(ctx, "sudo", "rm", "-f", sudoersPath),
 	}
+	return cmds, nil
+}
+
+func GroupSetupCmds(ctx context.Context, instUser, groupName string) ([]*exec.Cmd, error) {
+	var cmds []*exec.Cmd
+
+	sudoersContent, err := sudo.Sudoers(instUser)
+	if err != nil {
+		return nil, err
+	}
+	sudoersPath, err := sudo.SudoersPath(instUser)
+	if err != nil {
+		return nil, err
+	}
+
+	cmds = append(cmds,
+		exec.CommandContext(ctx, "sudo", "chmod", "go-rx", filepath.Join("/Users", instUser)),
+		exec.CommandContext(ctx, "sudo", "sh", "-c", fmt.Sprintf("mkdir -p /etc/sudoers.d && echo '%s' >'%s' && chmod 440 '%s'", sudoersContent, sudoersPath, sudoersPath)),
+	)
+
+	if groupName != "" {
+		cmds = append(cmds,
+			exec.CommandContext(ctx, "sudo", "sh", "-c", fmt.Sprintf("dscl . -create /Groups/%s 2>/dev/null || true", groupName)),
+			exec.CommandContext(ctx, "sudo", "sh", "-c", fmt.Sprintf("dscl . -append /Groups/%s GroupMembership %s", groupName, instUser)),
+		)
+	}
+
 	return cmds, nil
 }

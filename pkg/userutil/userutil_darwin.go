@@ -50,7 +50,7 @@ func GroupUsers(ctx context.Context, group string) ([]string, error) {
 			continue
 		}
 		parts := strings.SplitN(line, " ", 2)
-		if len(parts) >= 1 && parts[0] == "GroupMembership:" {
+		if len(parts) >= 2 && parts[0] == "GroupMembership:" {
 			users := strings.Fields(parts[1])
 			res = append(res, users...)
 		}

@@ -92,7 +92,7 @@ func action(cmd *cobra.Command, args []string) error {
 	if instUserExists {
 		if isGroupMode {
 			slog.InfoContext(ctx, "Setting up existing user for alcless", "instance", instName, "instUser", instUser)
-			cmds, err := userutil.GroupSetupCmds(ctx, instUser, userutil.GroupName(), instName)
+			cmds, err := userutil.GroupSetupCmds(ctx, instUser, userutil.GroupName())
 			if err != nil {
 				return err
 			}

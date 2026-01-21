@@ -59,7 +59,7 @@ func TestValidateName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateName(tt.input)
 			if tt.expectError {
-				assert.Error(t, err)
+				assert.Assert(t, err != nil, "expected error but got nil")
 			} else {
 				assert.NilError(t, err)
 			}

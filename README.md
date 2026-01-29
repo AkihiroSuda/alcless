@@ -1,5 +1,14 @@
-# Alcoholless: lightweight security sandbox for Homebrew
+# Alcoholless: lightweight security sandbox for Homebrew, AI agents, etc.
 
+Alcoholless is a lightweight security sandbox for macOS programs.
+
+While Alcoholless was originally made for the sake of securing Homebrew, basically it can be used for almost any CLI programs on macOS.
+Notably, Alcoholless is useful for allowing an AI agent to run shell commands with less risk of [breaking the host operating system](https://old.reddit.com/r/ClaudeAI/comments/1pgxckk/claude_cli_deleted_my_entire_home_directory_wiped/).
+
+See also my blog article: <https://medium.com/nttlabs/alcoholless-lightweight-security-sandbox-for-macos-ccf0d1927301>
+
+## Examples
+### Homebrew
 Alcoholless Homebrew (`alcless brew`) executes Homebrew in a separate environment
 so as to reduce concerns around potential supply chain attacks.
 
@@ -10,9 +19,30 @@ alcless xz SOME_FILE
 ```
 
 In the example above, `xz` works as a separate user with an access for the copy of the current directory.
-Changed files are synced back to the current directory when the command exits.
-
+The changed files are synced back to the current directory when the command exits, with a confirmation screen (see below).
 Other directories are inaccessible, as long as the permissions are set correctly.
+
+<details><summary>Confirmation screen</summary>
+
+```console
+$ alcless xz SOME_FILE
+0:00AM INF ➡️Syncing the files src=/Users/USER/SOME_DIRECTORY/ dst=default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY
+0:00AM INF ⬅️Syncing the files back (dry run) src=default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY/ dst=/Users/USER/SOME_DIRECTORY
+*deleting SOME_FILE
+.d..t.... ./
+>f+++++++ SOME_FILE.xz
+0:00AM INF ⬅️Syncing the files back src=default:/Users/alcless_USER_default/Users/user/tmp/ dst=/Users/USER/tmp
+⚠️  The following commands will be executed:
+rsync -rai --delete -e '/usr/local/bin/alclessctl shell --workdir=/ --plain' default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY/ /Users/USER/SOME_DIRECTORY
+❓ Press return to continue, or Ctrl-C to abort
+[RETURN]
+CONTINUE
+*deleting SOME_FILE
+.d..t.... ./
+>f+++++++ SOME_FILE.xz
+```
+
+</details>
 
 > [!IMPORTANT]
 >
@@ -21,7 +51,17 @@ Other directories are inaccessible, as long as the permissions are set correctly
 >
 > **Do NOT report any issue that happens with Alcoholless to the upstream Homebrew.**
 
-Alcoholless can be used for running non-Homebrew commands too.
+### AI agents
+
+To launch Gemini CLI with Alcoholless for example:
+
+```bash
+cd ~/SOME_DIRECTORY
+alcless brew install gemini-cli
+alcless gemini
+```
+
+The file changes made by the AI are committed to the host filesystem only after the user confirmation.
 
 ## Install
 

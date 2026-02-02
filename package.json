@@ -1,0 +1,31 @@
+{
+  "name": "alcless",
+  "version": "1.0.0",
+  "description": "Isolated macOS user sessions with pre-baked tools",
+  "main": "src/index.ts",
+  "type": "module",
+  "bin": {
+    "alcless": "./bin/alcless"
+  },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "containers": "bun src/index.ts create",
+    "test:e2e": "bun scripts/verify-e2e.ts"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-progress": "^3.12.0",
+    "commander": "^12.1.0",
+    "execa": "^9.3.0",
+    "p-limit": "^6.1.0",
+    "shell-quote": "^1.8.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cli-progress": "^3.11.5",
+    "@types/shell-quote": "^1.7.5",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,89 +1,42 @@
-# Files are installed under $(DESTDIR)/$(PREFIX)
-PREFIX ?= /usr/local
-DEST := $(shell echo "$(DESTDIR)/$(PREFIX)" | sed 's:///*:/:g; s://*$$::')
+.PHONY: clean test setup logs doctor
 
-VERSION ?=$(shell git describe --match 'v[0-9]*' --dirty='.m' --always --tags)
-VERSION_TRIMMED := $(VERSION:v%=%)
-VERSION_SYMBOL := github.com/AkihiroSuda/alcless/cmd/alclessctl/version.Version
+# Standard user prefix
+USER_PREFIX := alcl_$(shell whoami)_
 
-export SOURCE_DATE_EPOCH ?= $(shell git log -1 --pretty=%ct)
-SOURCE_DATE_EPOCH_TOUCH := $(shell date -r $(SOURCE_DATE_EPOCH) +%Y%m%d%H%M.%S)
-
-GO ?= go
-# Keep symbols by default, for supporting gomodjail
-# https://github.com/AkihiroSuda/gomodjail
-KEEP_SYMBOLS ?= 1
-GO_BUILD_LDFLAGS_S := true
-ifeq ($(KEEP_SYMBOLS),1)
-	GO_BUILD_LDFLAGS_S = false
-endif
-GO_BUILD_LDFLAGS ?= -s=$(GO_BUILD_LDFLAGS_S) -w -X $(VERSION_SYMBOL)=$(VERSION)
-GO_BUILD ?= $(GO) build -trimpath -ldflags="$(GO_BUILD_LDFLAGS)"
-GOOS ?= $(shell $(GO) env GOOS)
-GOARCH ?= $(shell $(GO) env GOARCH)
-
-BINARIES := _output/bin/alclessctl _output/bin/alcless
-
-TAR ?= tar
-
-.PHONY: all
-all: binaries
-
-.PHONY: binaries
-binaries: $(BINARIES)
-
-.PHONY: _output/bin/alclessctl
-_output/bin/alclessctl:
-	$(GO_BUILD) -o "$@" ./cmd/alclessctl
-
-.PHONY: _output/bin/alcless
-_output/bin/alcless:
-	cp -a ./cmd/alcless "$@"
-
-.PHONY: install
-install: uninstall
-	mkdir -p "$(DEST)/bin"
-	cp -a _output/bin/alclessctl "$(DEST)/bin/alclessctl"
-	cp -a _output/bin/alcless "$(DEST)/bin/alcless"
-
-.PHONY: uninstall
-uninstall:
-	rm -f "$(DEST)/bin/alclessctl" "$(DEST)/bin/alcless"
-
-
-# clean does not remove _artifacts
-.PHONY: clean
+# Aggressively clean up all alcless related artifacts
 clean:
-	rm -rf _output
+	@echo "🧹 Cleaning up alcless sessions and processes..."
+	-@sudo pkill -9 sysadminctl su alcless || true
+	-@dscl . -list /Users | grep $(USER_PREFIX) | while read user; do \
+		echo "Deleting user: $$user"; \
+		sudo sysadminctl -deleteUser $$user || true; \
+		sudo rm -rf /Users/$$user || true; \
+		sudo rm -f /etc/sudoers.d/$$user || true; \
+	done
+	-@sudo rm -f /etc/sudoers.d/alcl_$(shell whoami)_* || true
+	@rm -rf .alcless/logs/*
+	@echo "✨ System cleaned."
 
-define touch_recursive
-	find "$(1)" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) {} +
-endef
+# Check system health and permissions
+doctor:
+	@bun scripts/doctor.ts
 
-to_uname_m = $(shell echo $(1) | sed 's/amd64/x86_64/')
+# Run the staged verification suite
+test: setup
+	@echo "🧪 Running staged verification suite..."
+	@bun scripts/stage1-auth.ts
+	@bun scripts/stage2-creation.ts
+	@bun scripts/stage3-propagation.ts
+	@bun scripts/stage4-sudoers.ts
+	@bun scripts/stage5-provision.ts
+	@bun scripts/stage6-cleanup.ts
 
-define make_artifact
-	make clean
-	GOARCH=$(1) make
-	$(call touch_recursive,_output)
-	$(TAR) -C _output/ --no-xattrs --numeric-owner --uid 0 --gid 0 --option !timestamp -czvf _artifacts/alcless-$(VERSION_TRIMMED)-Darwin-$(call to_uname_m,$(1)).tar.gz ./
-endef
+# Setup environment
+setup:
+	@mkdir -p .alcless/logs
+	@bun install
 
-# Needs to be executed on macOS
-.PHONY: artifacts
-artifacts:
-	rm -rf _artifacts
-	mkdir -p _artifacts
-	$(call make_artifact,amd64)
-	$(call make_artifact,arm64)
-	make clean
-	go version | tee _artifacts/build-env.txt
-	echo --- >> _artifacts/build-env.txt
-	sw_vers | tee -a _artifacts/build-env.txt
-	echo --- >> _artifacts/build-env.txt
-	pkgutil --pkg-info=com.apple.pkg.CLTools_Executables | tee -a _artifacts/build-env.txt
-	echo --- >> _artifacts/build-env.txt
-	$(CC) --version | tee -a _artifacts/build-env.txt
-	(cd _artifacts ; sha256sum *) > SHA256SUMS
-	mv SHA256SUMS _artifacts/SHA256SUMS
-	$(call touch_recursive,_artifacts)
+# View real-time system traces
+logs:
+	@touch .alcless/logs/trace.log
+	@tail -f .alcless/logs/trace.log

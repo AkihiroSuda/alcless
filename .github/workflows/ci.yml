@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: macos-latest # Required for dscl/sysadminctl if we were running integration tests, but macos is slower/more expensive. 
+    # For now, we use macos-latest to ensure environment compatibility, 
+    # though unit tests can run on ubuntu.
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Run Tests
+        run: bun test

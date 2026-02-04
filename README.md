@@ -143,7 +143,7 @@ e.g., `sudo -u alcless_exampleuser_default open -a TextEdit` opens the `TextEdit
 This issue could be solved by copying the `pam_launchd.so` configuration from `/etc/pam.d/su` to `/etc/pam.d/sudo`,
 however, touching such system configuration files might be scary.
 
-So, the current workaround is to just wrap `sudo` inside `su`.
+So, the current workaround is to just wrap `su` inside `sudo`.
 
 #### Why not use VM?
 Because Apple's [Virtualization.framework](https://developer.apple.com/documentation/virtualization)

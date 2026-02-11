@@ -25,7 +25,10 @@ jobs:
   main:
     env:
       GOTOOLCHAIN: local
-    runs-on: macos-15
+    strategy:
+      matrix:
+        runs-on: [macos-15, macos-26]
+    runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -48,7 +51,7 @@ jobs:
   lint:
     env:
       GOTOOLCHAIN: local
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6

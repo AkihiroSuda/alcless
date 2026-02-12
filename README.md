@@ -1,3 +1,8 @@
+[[🍺**Homebrew**]](#homebrew)
+[[✦**Gemini**]](#gemini)
+[[֎**Codex**]](#codex)
+[[✴️**Claude Code**]](#claude-code)
+
 # Alcoholless: lightweight security sandbox for Homebrew, AI agents, etc.
 
 Alcoholless is a lightweight security sandbox for macOS programs.
@@ -53,7 +58,10 @@ CONTINUE
 
 ### AI agents
 
-To launch Gemini CLI with Alcoholless for example:
+Alcoholless is useful for sandboxing AI coding agents too.
+The file changes made by the AI are committed to the host filesystem only after the user confirmation.
+
+#### Gemini
 
 ```bash
 cd ~/SOME_DIRECTORY
@@ -61,7 +69,38 @@ alcless brew install gemini-cli
 alcless gemini
 ```
 
-The file changes made by the AI are committed to the host filesystem only after the user confirmation.
+#### Codex
+
+```bash
+cd ~/SOME_DIRECTORY
+alcless brew install codex
+alcless codex
+```
+
+> [!TIP]
+>
+> AI coding agents typically prints the authentication URL on the first run.
+> Make sure to copy and paste the URL in a single line.
+> (Hint: use TextEdit to eliminate extra line delimiters)
+
+#### Claude Code
+
+Unlike Gemini and Codex, Claude Code needs extra steps for the initial setup
+(issue [#52](https://github.com/AkihiroSuda/alcless/issues/52)):
+
+- Switch the desktop user to `alcless_USER_default` via the Fast User Switching icon in the macOS menubar.
+- Run the following commands in the `alcless_USER_default` desktop:
+```bash
+brew install claude-code
+claude
+```
+- Authenticate with Anthropic in the initial screen of `claude`.
+- Log out from the `alcless_USER_default` desktop.
+- Run the following commands in the main desktop:
+```bash
+cd ~/SOME_DIRECTORY
+alcless zsh -c "security unlock-keychain && claude"
+```
 
 ## Install
 

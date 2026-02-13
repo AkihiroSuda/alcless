@@ -185,20 +185,20 @@ however, touching such system configuration files might be scary.
 So, the current workaround is to just wrap `su` inside `sudo`.
 
 #### Why not use VM?
-Because Apple's [Virtualization.framework](https://developer.apple.com/documentation/virtualization)
-apparently does not provide a way to automate the initialization steps of macOS (e.g., accept EULA, skip enabling iCloud, set up SSH).
-
-Also, Virtualization.framework does not support accessing the host GPUs yet.
+Because VM has several disadvantages:
+- Non-negligible performance overhead
+- High disk consumption
+- No direct access to the host hardware (GPU, etc.)
+- Localhost address inaccessible from the host
+- Does not work on GitHub Actions etc. due to lack of the support for nested virtualization
 
 #### Why not support Linux and FreeBSD?
 Because Linux and FreeBSD already have containers.
 
 #### How does Alcoholless relate to Lima?
-- Alcoholless: run Homebrew in a separate user (not a VM, nor a container)
-- [Lima](https://lima-vm.io/): run a Linux VM, particularly for running containers
+- Alcoholless (**Lightweight**): run commands as a separate macOS user (not a VM, nor a container)
+- [Lima](https://lima-vm.io/) (**Strong security**): run commands in a Linux VM
+  - Support for macOS VM is also [planned](https://github.com/lima-vm/lima/issues/3618#issuecomment-3896250186)
 
 The `alclessctl` CLI is designed to mimic the `limactl` CLI for an easier learning,
-however, Alcoholless does not use Lima under the hood currently.
-
-Eventually, Alcoholless may incorporate Lima for stronger isolation using VMs,
-when we can figure out how to automate the initialiation steps of macOS VMs (See ["Why not use VM?"](#why-not-use-vm)).
+however, Alcoholless does not use Lima under the hood.

@@ -24,9 +24,6 @@ on:
       - 'master'
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - 'master'
 jobs:
   release:
     env:

@@ -94,14 +94,17 @@ func AddUserCmds(ctx context.Context, instUser string, tty bool) ([]*exec.Cmd, e
 	}, nil
 }
 
-func DeleteUserCmds(ctx context.Context, instUser string) ([]*exec.Cmd, error) {
+func DeleteUserCmds(ctx context.Context, instUser string, secure bool) ([]*exec.Cmd, error) {
 	sudoersPath, err := sudo.SudoersPath(instUser)
 	if err != nil {
 		return nil, err
 	}
+	sysadminctlArgs := []string{"-deleteUser", instUser}
+	if secure {
+		sysadminctlArgs = append(sysadminctlArgs, "-secure")
+	}
 	cmds := []*exec.Cmd{
-		// Not sure what "-secure" does
-		exec.CommandContext(ctx, "sudo", "sysadminctl", "-deleteUser", instUser, "-secure"),
+		exec.CommandContext(ctx, "sudo", append([]string{"sysadminctl"}, sysadminctlArgs...)...),
 		exec.CommandContext(ctx, "sudo", "rm", "-f", sudoersPath),
 	}
 	return cmds, nil

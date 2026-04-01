@@ -35,11 +35,18 @@ func New() *cobra.Command {
 		RunE:                  action,
 		DisableFlagsInUseLine: true,
 	}
+	flags := cmd.Flags()
+	flags.Bool("secure", false, "securely delete instance data (slow)")
 	return cmd
 }
 
 func action(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
+	flags := cmd.Flags()
+	flagSecure, err := flags.GetBool("secure")
+	if err != nil {
+		return err
+	}
 	instName := args[0]
 	if err := store.ValidateName(instName); err != nil {
 		return err
@@ -53,6 +60,6 @@ func action(cmd *cobra.Command, args []string) error {
 		slog.WarnContext(ctx, "No such instance", "instance", instName, "instUser", instUser)
 		return nil
 	}
-	cmds, err := userutil.DeleteUserCmds(ctx, instUser)
+	cmds, err := userutil.DeleteUserCmds(ctx, instUser, flagSecure)
 	return cmdutil.RunWithCobra(ctx, cmds, cmd)
 }

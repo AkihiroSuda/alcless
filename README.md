@@ -77,15 +77,19 @@ alcless brew install codex
 alcless codex
 ```
 
-> [!TIP]
->
-> AI coding agents typically prints the authentication URL on the first run.
-> Make sure to copy and paste the URL in a single line.
-> (Hint: use TextEdit to eliminate extra line delimiters)
-
 #### Claude Code
 
-Unlike Gemini and Codex, Claude Code needs extra steps for the initial setup
+```bash
+cd ~/SOME_DIRECTORY
+alcless brew install claude-code
+alcless claude
+```
+
+<details>
+<summary>Troubleshooting</summary>
+<p>
+
+Claude Code may need extra steps for the initial setup
 (issue [#52](https://github.com/AkihiroSuda/alcless/issues/52)):
 
 - Switch the desktop user to `alcless_USER_default` via the Fast User Switching icon in the macOS menubar.
@@ -101,6 +105,15 @@ claude
 cd ~/SOME_DIRECTORY
 alcless zsh -c "security unlock-keychain && claude"
 ```
+
+</p>
+</details>
+
+> [!TIP]
+>
+> AI coding agents typically prints the authentication URL on the first run.
+> Make sure to copy and paste the URL in a single line.
+> (Hint: use TextEdit to eliminate extra line delimiters)
 
 ## Install
 
@@ -198,7 +211,7 @@ Because Linux and FreeBSD already have containers.
 #### How does Alcoholless relate to Lima?
 - Alcoholless (**Lightweight**): run commands as a separate macOS user (not a VM, nor a container)
 - [Lima](https://lima-vm.io/) (**Strong security**): run commands in a VM
-  ([Linux](https://lima-vm.io/docs/usage/guests/linux/) or [macOS](https://lima-vm.io/docs/usage/guests/macos/))
+  ([Linux](https://lima-vm.io/docs/usage/guests/linux/), [macOS](https://lima-vm.io/docs/usage/guests/macos/), etc.)
 
 The `alclessctl` CLI is designed to mimic the `limactl` CLI for an easier learning,
 however, Alcoholless does not use Lima under the hood.

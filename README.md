@@ -2,6 +2,7 @@
 [[✦**Gemini**]](#gemini)
 [[֎**Codex**]](#codex)
 [[✴️**Claude Code**]](#claude-code)
+[[🔲**OpenCode**]](#opencode)
 
 # Alcoholless: lightweight security sandbox for Homebrew, AI agents, etc.
 
@@ -114,6 +115,32 @@ alcless zsh -c "security unlock-keychain && claude"
 > AI coding agents typically prints the authentication URL on the first run.
 > Make sure to copy and paste the URL in a single line.
 > (Hint: use TextEdit to eliminate extra line delimiters)
+
+#### OpenCode
+
+```bash
+cd ~/SOME_DIRECTORY
+# Specify --force-bottle to avoid recompilation
+alcless brew install --force-bottle opencode
+alcless opencode
+```
+
+<details>
+<summary>Ollama integration</summary>
+<p>
+
+To use a local model such as Gemma or Qwen, launch OpenCode via Ollama:
+
+```
+cd ~/SOME_DIRECTORY
+alcless brew install --force-bottle opencode ollama
+alcless ollama
+```
+
+Select `Launch OpenCode`, press `→`, and choose a model such as `gemma4`.
+
+</p>
+</details>
 
 ## Install
 

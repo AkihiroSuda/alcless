@@ -54,3 +54,9 @@ func Exists(name string) (bool, error) {
 	}
 	return true, nil
 }
+
+type Attribute string
+
+const (
+	AttributeUserShell = Attribute("UserShell")
+)

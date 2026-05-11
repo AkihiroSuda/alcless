@@ -6,9 +6,9 @@
 
 # Alcoholless: lightweight security sandbox for Homebrew, AI agents, etc.
 
-Alcoholless is a lightweight security sandbox for macOS programs.
+Alcoholless is a lightweight security sandbox, primarily for macOS programs.
 
-While Alcoholless was originally made for the sake of securing Homebrew, basically it can be used for almost any CLI programs on macOS.
+While Alcoholless was originally made for the sake of securing Homebrew, basically it can be used for almost any CLI programs.
 Notably, Alcoholless is useful for allowing an AI agent to run shell commands with less risk of [breaking the host operating system](https://old.reddit.com/r/ClaudeAI/comments/1pgxckk/claude_cli_deleted_my_entire_home_directory_wiped/).
 
 See also my blog article: <https://medium.com/nttlabs/alcoholless-lightweight-security-sandbox-for-macos-ccf0d1927301>
@@ -145,7 +145,7 @@ Select `Launch OpenCode`, press `→`, and choose a model such as `gemma4`.
 ## Install
 
 Requirements:
-- macOS
+- macOS (recommended) or Linux
 - [Go](https://go.dev)
 
 To install Alcoholless, run:
@@ -214,7 +214,7 @@ See [FAQs](#faqs) for the reason why `su` is wrapped inside `sudo`.
 
 ### FAQs
 #### Why wrap `su` inside `sudo`?
-Because `sudo` doesn't isolate "a specific Mach bootstrap subset, audit session and other characteristics not recognized by POSIX" (see `launchd(8)`),
+Because `sudo` doesn't isolate "a specific Mach bootstrap subset, audit session and other characteristics not recognized by POSIX" (see `launchd(8)`) on macOS,
 while `su` isolates them.
 
 e.g., `sudo -u alcless_exampleuser_default open -a TextEdit` opens the `TextEdit` application as the current user, not as `alcless_exampleuser_default`.
@@ -224,6 +224,9 @@ however, touching such system configuration files might be scary.
 
 So, the current workaround is to just wrap `su` inside `sudo`.
 
+#### Why not use containers?
+Because containers are not supported on macOS.
+
 #### Why not use VM?
 Because VM has several disadvantages:
 - Non-negligible performance overhead
@@ -231,12 +234,10 @@ Because VM has several disadvantages:
 - No direct access to the host hardware (GPU, etc.)
 - Localhost address inaccessible from the host
 - Does not work on GitHub Actions etc. due to lack of the support for nested virtualization
-
-#### Why not support Linux and FreeBSD?
-Because Linux and FreeBSD already have containers.
+- [Licensing limitations](https://www.apple.com/legal/sla/) apply for macOS guests (e.g., only 2 guests can be runnable at most)
 
 #### How does Alcoholless relate to Lima?
-- Alcoholless (**Lightweight**): run commands as a separate macOS user (not a VM, nor a container)
+- Alcoholless (**Lightweight**): run commands as a separate user (not a VM, nor a container)
 - [Lima](https://lima-vm.io/) (**Strong security**): run commands in a VM
   ([Linux](https://lima-vm.io/docs/usage/guests/linux/), [macOS](https://lima-vm.io/docs/usage/guests/macos/), etc.)
 

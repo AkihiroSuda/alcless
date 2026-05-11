@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"al.essio.dev/pkg/shellescape"
@@ -35,23 +36,71 @@ func SudoersPath(instUser string) (string, error) {
 	return filepath.Join("/etc/sudoers.d/", instUser), nil
 }
 
+// suArgs returns the arguments passed to /usr/bin/su, excluding `-c COMMAND`.
+//
+// On Linux, `-P` allocates a pseudo-terminal so that the spawned shell has a
+// controlling terminal and job control works. macOS `su` (BSD) does not
+// support `-P`, and the macOS-style invocation already retains the caller's
+// tty, so no workaround is needed there.
+func suArgs(instUser string, pty bool) []string {
+	if pty && runtime.GOOS == "linux" {
+		return []string{"-P", "-", instUser}
+	}
+	return []string{"-", instUser}
+}
+
 func Sudoers(instUser string) (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s ALL=(root) NOPASSWD: /usr/bin/su - %s -c *", currentUser.Username, instUser), nil
+	// Allow both the plain and the `-P` (Linux pty) forms. Both invocations
+	// may be issued by alclessctl depending on whether an interactive
+	// pseudo-terminal is needed.
+	patterns := []string{
+		strings.Join(append([]string{"/usr/bin/su"}, suArgs(instUser, false)...), " ") + " -c *",
+	}
+	if runtime.GOOS == "linux" {
+		patterns = append(patterns,
+			strings.Join(append([]string{"/usr/bin/su"}, suArgs(instUser, true)...), " ")+" -c *",
+		)
+	}
+	return fmt.Sprintf("%s ALL=(root) NOPASSWD: %s", currentUser.Username, strings.Join(patterns, ", ")), nil
 }
 
-func Cmd(ctx context.Context, instUser, wd, cmdExe string, cmdArgs []string) *exec.Cmd {
+type cmdOpts struct {
+	pty bool
+}
+
+// CmdOpt is an option for Cmd.
+type CmdOpt func(*cmdOpts)
+
+// WithPTY requests that the command be wrapped in a pseudo-terminal,
+// so that job control works in interactive shells. Only honored on Linux.
+func WithPTY() CmdOpt {
+	return func(o *cmdOpts) {
+		o.pty = true
+	}
+}
+
+func Cmd(ctx context.Context, instUser, wd, cmdExe string, cmdArgs []string, opts ...CmdOpt) *exec.Cmd {
+	var o cmdOpts
+	for _, f := range opts {
+		f(&o)
+	}
 	quotedArgs := make([]string, len(cmdArgs))
 	for i, f := range cmdArgs {
 		quotedArgs[i] = shellescape.Quote(f)
 	}
-	snippet := fmt.Sprintf("cd %s ; exec %s %s", // cd may fail
-		shellescape.Quote(wd), // can be empty
+	execPart := fmt.Sprintf("exec %s %s",
 		shellescape.Quote(cmdExe),
 		strings.Join(quotedArgs, " "))
-	cmd := exec.CommandContext(ctx, "sudo", "-n", "/usr/bin/su", "-", instUser, "-c", snippet)
+	snippet := execPart
+	if wd != "" {
+		snippet = fmt.Sprintf("cd %s ; %s", shellescape.Quote(wd), execPart)
+	}
+	args := append([]string{"-n", "/usr/bin/su"}, suArgs(instUser, o.pty)...)
+	args = append(args, "-c", snippet)
+	cmd := exec.CommandContext(ctx, "sudo", args...)
 	return cmd
 }

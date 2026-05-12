@@ -67,7 +67,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-// Depth of "/Users/USER" is 3.
+// Depth of "/Users/USER" (macOS) and "/home/USER" (Linux) is 3.
 const rsyncMinimumSrcDirDepth = 4
 
 func action(cmd *cobra.Command, args []string) error {
@@ -159,7 +159,7 @@ func action(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("the host working directory must not be $HOME, as this directory is being rsynced to the instance (Hint: %s)", hint)
 		} else {
 			srcWdDepth := len(strings.Split(hostWD, string(os.PathSeparator)))
-			// Depth of "/Users/USER" is 3
+			// Depth of "/Users/USER" (macOS) and "/home/USER" (Linux) is 3
 			slog.DebugContext(ctx, "Working directory depth", "wd", hostWD, "depth", srcWdDepth)
 			if srcWdDepth < rsyncMinimumSrcDirDepth {
 				return fmt.Errorf("expected the depth of the host working directory (%q) to be more than %d, only got %d (Hint: %s)",
@@ -186,7 +186,14 @@ func action(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	sudoCmd := sudo.Cmd(ctx, instUser, guestWD, cmdExe, cmdArgs)
+	var sudoOpts []sudo.CmdOpt
+	if flagTty {
+		// Allocate a pty (Linux only) so the spawned shell has a controlling
+		// terminal, avoiding "cannot set terminal process group" and getting
+		// job control to work.
+		sudoOpts = append(sudoOpts, sudo.WithPTY())
+	}
+	sudoCmd := sudo.Cmd(ctx, instUser, guestWD, cmdExe, cmdArgs, sudoOpts...)
 	sudoCmdOpts, err := cmdutil.RunOptsFromCobra(cmd) // Propagate stdin
 	if err != nil {
 		return err

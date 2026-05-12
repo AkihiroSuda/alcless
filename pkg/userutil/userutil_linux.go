@@ -23,17 +23,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"path/filepath"
 	"strings"
-
-	"github.com/sethvargo/go-password/password"
 
 	"github.com/AkihiroSuda/alcless/pkg/sudo"
 )
 
 func Users(ctx context.Context) ([]string, error) {
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "dscl", ".", "list", "/Users")
+	cmd := exec.CommandContext(ctx, "getent", "passwd")
 	cmd.Stderr = &stderr
 	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
 	b, err := cmd.Output()
@@ -43,27 +40,36 @@ func Users(ctx context.Context) ([]string, error) {
 	var res []string
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
-		res = append(res, scanner.Text())
+		line := scanner.Text()
+		if i := strings.IndexByte(line, ':'); i > 0 {
+			res = append(res, line[:i])
+		}
 	}
 	return res, scanner.Err()
 }
 
-func ReadAttribute(ctx context.Context, username string, k Attribute) (string, error) {
-	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "dscl", ".", "-read", "/Users/"+username, string(k))
-	cmd.Stderr = &stderr
-	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
-	b, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String())
+func ReadAttribute(_ context.Context, username string, k Attribute) (string, error) {
+	switch k {
+	case AttributeUserShell:
+		// os/user does not expose the shell, so parse /etc/passwd via getent.
+		var stderr bytes.Buffer
+		cmd := exec.Command("getent", "passwd", username)
+		cmd.Stderr = &stderr
+		b, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String())
+		}
+		line := strings.TrimRight(string(b), "\n")
+		fields := strings.Split(line, ":")
+		if len(fields) < 7 {
+			return "", fmt.Errorf("unexpected passwd entry for %q: %q", username, line)
+		}
+		return fields[6], nil
 	}
-	s := string(b)
-	s = strings.TrimPrefix(s, string(k)+":")
-	s = strings.TrimSpace(s)
-	return s, nil
+	return "", fmt.Errorf("unsupported attribute %q", k)
 }
 
-func AddUserCmds(ctx context.Context, instUser string, tty bool) ([]*exec.Cmd, error) {
+func AddUserCmds(ctx context.Context, instUser string, _ bool) ([]*exec.Cmd, error) {
 	sudoersContent, err := sudo.Sudoers(instUser)
 	if err != nil {
 		return nil, err
@@ -73,17 +79,12 @@ func AddUserCmds(ctx context.Context, instUser string, tty bool) ([]*exec.Cmd, e
 		return nil, err
 	}
 	sudoersCmd := fmt.Sprintf("echo '%s' >'%s'", sudoersContent, sudoersPath)
-	pw := "-"
-	if !tty {
-		pw, err := password.Generate(64, 10, 10, false, false)
-		if err != nil {
-			return nil, err
-		}
-		slog.WarnContext(ctx, "Generated a random password, as tty is not available. THE PASSWORD IS SHOWN IN THIS SCREEN.", "user", instUser, "password", pw)
-	}
+	// The user is accessed via `sudo /usr/bin/su -` (NOPASSWD), so no password is set.
+	// useradd leaves the password locked by default, which is what we want.
+	home := "/home/" + instUser
 	return []*exec.Cmd{
-		exec.CommandContext(ctx, "sudo", "sysadminctl", "-addUser", instUser, "-password", pw),
-		exec.CommandContext(ctx, "sudo", "chmod", "go-rx", filepath.Join("/Users", instUser)),
+		exec.CommandContext(ctx, "sudo", "useradd", "-s", "/bin/bash", "--create-home", "--home-dir", home, instUser),
+		exec.CommandContext(ctx, "sudo", "chmod", "go-rx", home),
 		exec.CommandContext(ctx, "sudo", "sh", "-c", sudoersCmd),
 	}, nil
 }
@@ -93,13 +94,11 @@ func DeleteUserCmds(ctx context.Context, instUser string, secure bool) ([]*exec.
 	if err != nil {
 		return nil, err
 	}
-	sysadminctlArgs := []string{"-deleteUser", instUser}
 	if secure {
-		sysadminctlArgs = append(sysadminctlArgs, "-secure")
+		slog.WarnContext(ctx, "The --secure flag is not implemented on Linux; falling back to a normal deletion", "user", instUser)
 	}
-	cmds := []*exec.Cmd{
-		exec.CommandContext(ctx, "sudo", append([]string{"sysadminctl"}, sysadminctlArgs...)...),
+	return []*exec.Cmd{
+		exec.CommandContext(ctx, "sudo", "userdel", "--remove", instUser),
 		exec.CommandContext(ctx, "sudo", "rm", "-f", sudoersPath),
-	}
-	return cmds, nil
+	}, nil
 }

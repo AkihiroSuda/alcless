@@ -115,7 +115,9 @@ func action(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if !flagPlain {
-		if err = brew.Installed(ctx, instUser); err == nil {
+		if !brew.Supported() {
+			slog.WarnContext(ctx, "Homebrew is not supported on this host", "instance", instName, "instUser", instUser)
+		} else if err = brew.Installed(ctx, instUser); err == nil {
 			slog.InfoContext(ctx, "Homebrew is already installed", "instance", instName, "instUser", instUser)
 		} else {
 			slog.DebugContext(ctx, "Homebrew is not installed", "instance", instName, "instUser", instUser, "error", err)

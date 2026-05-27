@@ -1,11 +1,11 @@
 // gomodjail:confined
 module github.com/AkihiroSuda/alcless
 
-go 1.25.0
+go 1.26.3
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0
-	github.com/containerd/containerd/v2 v2.2.3
+	github.com/containerd/containerd/v2 v2.3.1
 	github.com/lmittmann/tint v1.1.3
 	github.com/sethvargo/go-password v0.3.1
 	github.com/spf13/cobra v1.10.2 // gomodjail:unconfined

@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: oldstable
       - name: Unit tests
@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: oldstable
       - run: go install github.com/google/addlicense@latest

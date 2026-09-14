@@ -52,10 +52,9 @@ CONTINUE
 
 > [!IMPORTANT]
 >
-> Alcoholless uses an [unsupported installation mode](https://docs.brew.sh/Installation#untar-anywhere-unsupported) of Homebrew
+> Alcoholless uses a [Tier 3 configuration](https://docs.brew.sh/Support-Tiers#tier-3) of Homebrew
 > that uses a custom installation prefix.
->
-> **Do NOT report any issue that happens with Alcoholless to the upstream Homebrew.**
+> Some formulae may not work.
 
 ### AI agents
 

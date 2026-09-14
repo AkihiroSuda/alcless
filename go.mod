@@ -4,7 +4,7 @@ module github.com/AkihiroSuda/alcless
 go 1.26.3
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0
+	al.essio.dev/pkg/shellescape v1.6.1
 	github.com/containerd/containerd/v2 v2.3.4
 	github.com/lmittmann/tint v1.2.0
 	github.com/sethvargo/go-password v0.4.0

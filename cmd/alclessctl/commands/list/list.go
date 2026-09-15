@@ -61,6 +61,9 @@ func action(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	for i := range insts {
+		insts[i].WarnIfLegacy(ctx)
+	}
 	switch {
 	case flagJson:
 		// single JSON object per line (similar to `limactl ls --quiet`)

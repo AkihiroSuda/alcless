@@ -19,7 +19,6 @@ package delete
 import (
 	"errors"
 	"log/slog"
-	"os/user"
 
 	"github.com/spf13/cobra"
 
@@ -61,24 +60,15 @@ func action(cmd *cobra.Command, args []string) error {
 	if err := store.ValidateName(instName); err != nil {
 		return err
 	}
-	instUser := userutil.UserFromInstance(instName)
-	instUserExists, err := userutil.Exists(instUser)
+	inst, err := store.Inspect(ctx, instName)
 	if err != nil {
 		return err
 	}
-	if !instUserExists {
-		slog.WarnContext(ctx, "No such instance", "instance", instName, "instUser", instUser)
+	if inst == nil {
+		slog.WarnContext(ctx, "No such instance", "instance", instName)
 		return nil
 	}
-	var instUserHome string
-	if flagKeepHome {
-		u, err := user.Lookup(instUser)
-		if err != nil {
-			return err
-		}
-		instUserHome = u.HomeDir
-	}
-	cmds, err := userutil.DeleteUserCmds(ctx, instUser, userutil.DeleteOpts{
+	cmds, err := userutil.DeleteUserCmds(ctx, inst.User, userutil.DeleteOpts{
 		Secure:   flagSecure,
 		KeepHome: flagKeepHome,
 	})
@@ -88,9 +78,23 @@ func action(cmd *cobra.Command, args []string) error {
 	if err := cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
 		return err
 	}
+	if err := store.Remove(instName); err != nil {
+		return err
+	}
+	// The group is shared by every instance, so it is removed only after the
+	// last one is gone.
+	groupCmds, err := userutil.DeleteGroupIfEmptyCmds(ctx)
+	if err != nil {
+		return err
+	}
+	if len(groupCmds) > 0 {
+		if err := cmdutil.RunWithCobra(ctx, groupCmds, cmd); err != nil {
+			return err
+		}
+	}
 	if flagKeepHome {
 		slog.InfoContext(ctx, "The home directory was kept, and still consumes the disk space. Remove it manually if it is no longer needed.",
-			"instance", instName, "instUser", instUser, "home", instUserHome)
+			"instance", instName, "instUser", inst.User, "home", inst.Home)
 	}
 	return nil
 }

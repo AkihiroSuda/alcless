@@ -49,7 +49,11 @@ func suArgs(instUser string, pty bool) []string {
 	return []string{"-", instUser}
 }
 
-func Sudoers(instUser string) (string, error) {
+// Sudoers returns the content of the sudoers file for the instance user.
+//
+// The label (e.g., "alcless_exampleuser_default") is written as a comment, as
+// the file name only contains the opaque user name (e.g., "u502").
+func Sudoers(instUser, label string) (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", err
@@ -65,7 +69,8 @@ func Sudoers(instUser string) (string, error) {
 			strings.Join(append([]string{"/usr/bin/su"}, suArgs(instUser, true)...), " ")+" -c *",
 		)
 	}
-	return fmt.Sprintf("%s ALL=(root) NOPASSWD: %s", currentUser.Username, strings.Join(patterns, ", ")), nil
+	return fmt.Sprintf("# Alcoholless instance: %s\n%s ALL=(root) NOPASSWD: %s",
+		label, currentUser.Username, strings.Join(patterns, ", ")), nil
 }
 
 type cmdOpts struct {

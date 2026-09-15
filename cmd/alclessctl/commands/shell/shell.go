@@ -18,13 +18,11 @@ package shell
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -89,17 +87,16 @@ func action(cmd *cobra.Command, args []string) error {
 	if err = store.ValidateName(instName); err != nil {
 		return err
 	}
-	instUser := userutil.UserFromInstance(instName)
-	instUserInfo, err := user.Lookup(instUser)
+	inst, err := store.Inspect(ctx, instName)
 	if err != nil {
-		var uee user.UnknownUserError
-		if errors.As(err, &uee) {
-			// TODO: run the `alclessctl create` command automatically
-			slog.DebugContext(ctx, "user does not exist", "user", instUser, "error", err)
-			return fmt.Errorf("instance %q does not exist (Hint: run `alclessctl create %s` first)", instName, instName)
-		}
-		return fmt.Errorf("failed to get user %q: %w", instUser, err)
+		return err
 	}
+	if inst == nil {
+		// TODO: run the `alclessctl create` command automatically
+		return fmt.Errorf("instance %q does not exist (Hint: run `alclessctl create %s` first)", instName, instName)
+	}
+	inst.WarnIfLegacy(ctx)
+	instUser := inst.User
 
 	flagShell, err := flags.GetString("shell")
 	if err != nil {
@@ -131,7 +128,7 @@ func action(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	instUserHome := instUserInfo.HomeDir
+	instUserHome := inst.Home
 	if instUserHome == "" {
 		return fmt.Errorf("failed to detect the home directory of the user %q", instUser)
 	}

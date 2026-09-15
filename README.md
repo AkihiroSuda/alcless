@@ -32,14 +32,14 @@ Other directories are inaccessible, as long as the permissions are set correctly
 
 ```console
 $ alcless xz SOME_FILE
-0:00AM INF ➡️Syncing the files src=/Users/USER/SOME_DIRECTORY/ dst=default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY
-0:00AM INF ⬅️Syncing the files back (dry run) src=default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY/ dst=/Users/USER/SOME_DIRECTORY
+0:00AM INF ➡️Syncing the files src=/Users/USER/SOME_DIRECTORY/ dst=default:/Users/uSANDBOX_UID/Users/USER/SOME_DIRECTORY
+0:00AM INF ⬅️Syncing the files back (dry run) src=default:/Users/uSANDBOX_UID/Users/USER/SOME_DIRECTORY/ dst=/Users/USER/SOME_DIRECTORY
 *deleting SOME_FILE
 .d..t.... ./
 >f+++++++ SOME_FILE.xz
-0:00AM INF ⬅️Syncing the files back src=default:/Users/alcless_USER_default/Users/user/tmp/ dst=/Users/USER/tmp
+0:00AM INF ⬅️Syncing the files back src=default:/Users/uSANDBOX_UID/Users/USER/tmp/ dst=/Users/USER/tmp
 ⚠️  The following commands will be executed:
-rsync -rai --delete -e '/usr/local/bin/alclessctl shell --workdir=/ --plain' default:/Users/alcless_USER_default/Users/USER/SOME_DIRECTORY/ /Users/USER/SOME_DIRECTORY
+rsync -rai --delete -e '/usr/local/bin/alclessctl shell --workdir=/ --plain' default:/Users/uSANDBOX_UID/Users/USER/SOME_DIRECTORY/ /Users/USER/SOME_DIRECTORY
 ❓ Press return to continue, or Ctrl-C to abort
 [RETURN]
 CONTINUE
@@ -93,6 +93,7 @@ Claude Code may need extra steps for the initial setup
 (issue [#52](https://github.com/AkihiroSuda/alcless/issues/52)):
 
 - Switch the desktop user to `alcless_USER_default` via the Fast User Switching icon in the macOS menubar.
+  (The menubar shows this label, not the actual user name `uSANDBOX_UID`. See [Instance accounts](#instance-accounts).)
 - Run the following commands in the `alcless_USER_default` desktop:
 ```bash
 brew install claude-code
@@ -159,7 +160,7 @@ Makefile variables:
 
 ## Usage
 
-To initialize the "default" sandbox (user account `alcless_${USER}_default`):
+To initialize the "default" sandbox (see [Instance accounts](#instance-accounts) for the user account):
 ```
 alclessctl create default
 ```
@@ -187,28 +188,114 @@ To remove the sandbox:
 alclessctl delete default
 ```
 
-To remove the sandbox, while keeping the home directory of the sandbox user (`/Users/alcless_${USER}_default`):
+To remove the sandbox, while keeping the home directory of the sandbox user
+(`/Users/uSANDBOX_UID`, see [Instance accounts](#instance-accounts)):
 ```
 alclessctl delete --keep-home default
 ```
 
 The command line is designed to be similar to [`limactl`](https://lima-vm.io/docs/usage/).
 
+To uninstall Alcoholless entirely, see [FAQs](#how-to-uninstall-alcoholless).
+
 ## How it works
 Just plain old utilities under the hood: `sudo`, `su`, `pam_launchd`, and `rsync`.
 
 A future version may also incorporate [FSKit](https://developer.apple.com/documentation/fskit/) to replace `rsync`.
 
-### Security notice
-Alcoholless creates `/etc/sudoers.d/alcless_exampleuser_default` for the user `exampleuser`, with the following content:
-```
-exampleuser ALL=(root) NOPASSWD: /usr/bin/su - alcless_exampleuser_default -c *
+### Instance accounts
+Each instance is a separate user account.
+For the host user `exampleuser` (UID 501) and the instance `default`:
+
+| | |
+| --- | --- |
+| UID | `502` |
+| User name | `u502` |
+| Home directory | `/Users/u502` (macOS), `/home/u502` (Linux) |
+| Homebrew prefix | `$HOME/h`, i.e. `/Users/u502/h` |
+| Group | `alcless` (supplementary) |
+| Label | `alcless_exampleuser_default`, in the RealName (macOS) / GECOS (Linux) field |
+| Metadata | `~/.config/alcless/instances/default.json` |
+
+#### UID and user name
+The UID is not derived from the UID of the host user:
+`alclessctl create` just picks the lowest UID that is free on the machine,
+starting at 501 on macOS (the UIDs below it are reserved for the system and the role accounts)
+and at 1000 on Linux.
+So on a Mac whose only human account is `exampleuser` (UID 501),
+the first instance gets the UID 502, the second one 503, and so forth.
+A UID is skipped when `/Users/u${UID}` still exists, so that an instance never inherits
+the home directory left behind by `alclessctl delete --keep-home`.
+
+The user name is just `u` followed by the UID, so as to keep the paths short:
+Homebrew refuses to pour a bottle into a prefix that is longer than the prefix the bottle was built for
+(13 characters for `/opt/homebrew`, 26 for `/home/linuxbrew/.linuxbrew`),
+and builds the formula from source instead.
+`/Users/u502/h` is exactly 13 characters.
+
+> [!NOTE]
+>
+> On Intel Macs the bottles are built for `/usr/local` (10 characters), which cannot be matched
+> from under `/Users` at all. `alclessctl create` prints a warning, and Homebrew builds from source.
+
+#### Metadata
+The user name carries no instance name, so the instance name is recorded in a metadata file:
+
+```console
+$ cat ~/.config/alcless/instances/default.json
+{
+  "version": 1,
+  "name": "default",
+  "user": "u502",
+  "uid": 502
+}
 ```
 
-This `sudo` configuration allows `exampleuser` to run `/usr/bin/su - alcless_exampleuser_default -c *` as the `root` user,
+The path is `${XDG_CONFIG_HOME:-$HOME/.config}/alcless/instances/${INSTANCE}.json`.
+`$XDG_CONFIG_HOME` is honored on macOS too, unlike in the Apple convention
+(`$HOME/Library/Application Support`), so that both platforms behave the same.
+
+The directory is created with the mode 0700 and the file with 0600,
+and Alcoholless refuses to read a file that is not owned by the host user,
+or that is writable by anybody else.
+The sandbox user therefore cannot claim to be another instance.
+
+#### Group
+Every instance user is a member of the supplementary `alcless` group.
+Only `root` can create a group or edit its membership, so this is a trustable marker
+for "this account was created by Alcoholless":
+resolving an instance requires the recorded user to exist, to still have the recorded UID,
+and to be a member of that group.
+
+The group is created by the `alclessctl create` of the first instance,
+and removed by the `alclessctl delete` of the last one.
+
+#### Label
+The label is only cosmetic: it is what the macOS login window and the Fast User Switching menu show.
+It is never used to resolve an instance, as the sandbox user may be able to rewrite
+its own GECOS field via `chfn(1)` on Linux.
+
+> [!IMPORTANT]
+>
+> Instances created by Alcoholless v0.2.0 or older use the long
+> `/Users/alcless_${USER}_${INSTANCE}` home directory, which makes Homebrew build
+> every formula from source. `alclessctl` warns when it finds such an instance.
+> Recreate it to get the short paths:
+> ```bash
+> alclessctl delete INSTANCE && alclessctl create INSTANCE
+> ```
+
+### Security notice
+Alcoholless creates `/etc/sudoers.d/u502` for the user `exampleuser`, with the following content:
+```
+# Alcoholless instance: alcless_exampleuser_default
+exampleuser ALL=(root) NOPASSWD: /usr/bin/su - u502 -c *
+```
+
+This `sudo` configuration allows `exampleuser` to run `/usr/bin/su - u502 -c *` as the `root` user,
 without the password.
 
-The `su` command being executed through `sudo` can run an arbitrary command as the sandbox user `alcless_exampleuser_default`.
+The `su` command being executed through `sudo` can run an arbitrary command as the sandbox user `u502`.
 
 See [FAQs](#faqs) for the reason why `su` is wrapped inside `sudo`.
 
@@ -247,3 +334,17 @@ Because VM has several disadvantages:
 
 The `alclessctl` CLI is designed to mimic the `limactl` CLI for an easier learning,
 however, Alcoholless does not use Lima under the hood.
+
+#### How to uninstall Alcoholless?
+
+```bash
+# Remove the sandbox user accounts and their /etc/sudoers.d entries.
+# This also removes the `alcless` group, as no instance is left afterwards.
+alclessctl list --quiet | xargs -n 1 alclessctl delete
+
+# Remove the instance metadata
+rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/alcless"
+
+# Remove the alclessctl and alcless binaries
+sudo make uninstall
+```

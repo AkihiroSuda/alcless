@@ -60,3 +60,13 @@ type Attribute string
 const (
 	AttributeUserShell = Attribute("UserShell")
 )
+
+// DeleteOpts is the options for [DeleteUserCmds].
+type DeleteOpts struct {
+	// Secure securely erases the home directory (slow).
+	// Not implemented on Linux.
+	Secure bool
+	// KeepHome keeps the home directory of the user.
+	// Conflicts with Secure.
+	KeepHome bool
+}

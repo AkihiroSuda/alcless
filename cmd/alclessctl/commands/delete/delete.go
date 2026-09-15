@@ -17,7 +17,9 @@
 package delete
 
 import (
+	"errors"
 	"log/slog"
+	"os/user"
 
 	"github.com/spf13/cobra"
 
@@ -37,6 +39,7 @@ func New() *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.Bool("secure", false, "securely delete instance data (slow)")
+	flags.Bool("keep-home", false, "keep the home directory of the instance user")
 	return cmd
 }
 
@@ -46,6 +49,13 @@ func action(cmd *cobra.Command, args []string) error {
 	flagSecure, err := flags.GetBool("secure")
 	if err != nil {
 		return err
+	}
+	flagKeepHome, err := flags.GetBool("keep-home")
+	if err != nil {
+		return err
+	}
+	if flagSecure && flagKeepHome {
+		return errors.New("option --secure conflicts with option --keep-home")
 	}
 	instName := args[0]
 	if err := store.ValidateName(instName); err != nil {
@@ -60,6 +70,27 @@ func action(cmd *cobra.Command, args []string) error {
 		slog.WarnContext(ctx, "No such instance", "instance", instName, "instUser", instUser)
 		return nil
 	}
-	cmds, err := userutil.DeleteUserCmds(ctx, instUser, flagSecure)
-	return cmdutil.RunWithCobra(ctx, cmds, cmd)
+	var instUserHome string
+	if flagKeepHome {
+		u, err := user.Lookup(instUser)
+		if err != nil {
+			return err
+		}
+		instUserHome = u.HomeDir
+	}
+	cmds, err := userutil.DeleteUserCmds(ctx, instUser, userutil.DeleteOpts{
+		Secure:   flagSecure,
+		KeepHome: flagKeepHome,
+	})
+	if err != nil {
+		return err
+	}
+	if err := cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
+		return err
+	}
+	if flagKeepHome {
+		slog.InfoContext(ctx, "The home directory was kept, and still consumes the disk space. Remove it manually if it is no longer needed.",
+			"instance", instName, "instUser", instUser, "home", instUserHome)
+	}
+	return nil
 }

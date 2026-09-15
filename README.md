@@ -187,6 +187,11 @@ To remove the sandbox:
 alclessctl delete default
 ```
 
+To remove the sandbox, while keeping the home directory of the sandbox user (`/Users/alcless_${USER}_default`):
+```
+alclessctl delete --keep-home default
+```
+
 The command line is designed to be similar to [`limactl`](https://lima-vm.io/docs/usage/).
 
 ## How it works

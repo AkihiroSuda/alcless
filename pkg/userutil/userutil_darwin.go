@@ -76,7 +76,7 @@ func AddUserCmds(ctx context.Context, instUser string, tty bool) ([]*exec.Cmd, e
 	sudoersCmd := fmt.Sprintf("echo '%s' >'%s'", sudoersContent, sudoersPath)
 	pw := "-"
 	if !tty {
-		pw, err := password.Generate(64, 10, 10, false, false)
+		pw, err = password.Generate(64, 10, 10, false, false)
 		if err != nil {
 			return nil, err
 		}

@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -88,14 +89,21 @@ func AddUserCmds(ctx context.Context, instUser string, tty bool) ([]*exec.Cmd, e
 	}, nil
 }
 
-func DeleteUserCmds(ctx context.Context, instUser string, secure bool) ([]*exec.Cmd, error) {
+func DeleteUserCmds(ctx context.Context, instUser string, opts DeleteOpts) ([]*exec.Cmd, error) {
+	if opts.Secure && opts.KeepHome {
+		return nil, errors.New("the Secure option conflicts with the KeepHome option")
+	}
 	sudoersPath, err := sudo.SudoersPath(instUser)
 	if err != nil {
 		return nil, err
 	}
+	// `sysadminctl -deleteUser <user name> [-secure || -keepHome]`
 	sysadminctlArgs := []string{"-deleteUser", instUser}
-	if secure {
+	switch {
+	case opts.Secure:
 		sysadminctlArgs = append(sysadminctlArgs, "-secure")
+	case opts.KeepHome:
+		sysadminctlArgs = append(sysadminctlArgs, "-keepHome")
 	}
 	cmds := []*exec.Cmd{
 		exec.CommandContext(ctx, "sudo", append([]string{"sysadminctl"}, sysadminctlArgs...)...),

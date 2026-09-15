@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -89,16 +90,24 @@ func AddUserCmds(ctx context.Context, instUser string, _ bool) ([]*exec.Cmd, err
 	}, nil
 }
 
-func DeleteUserCmds(ctx context.Context, instUser string, secure bool) ([]*exec.Cmd, error) {
+func DeleteUserCmds(ctx context.Context, instUser string, opts DeleteOpts) ([]*exec.Cmd, error) {
+	if opts.Secure && opts.KeepHome {
+		return nil, errors.New("the Secure option conflicts with the KeepHome option")
+	}
 	sudoersPath, err := sudo.SudoersPath(instUser)
 	if err != nil {
 		return nil, err
 	}
-	if secure {
+	if opts.Secure {
 		slog.WarnContext(ctx, "The --secure flag is not implemented on Linux; falling back to a normal deletion", "user", instUser)
 	}
+	userdelArgs := []string{"userdel"}
+	if !opts.KeepHome {
+		userdelArgs = append(userdelArgs, "--remove")
+	}
+	userdelArgs = append(userdelArgs, instUser)
 	return []*exec.Cmd{
-		exec.CommandContext(ctx, "sudo", "userdel", "--remove", instUser),
+		exec.CommandContext(ctx, "sudo", userdelArgs...),
 		exec.CommandContext(ctx, "sudo", "rm", "-f", sudoersPath),
 	}, nil
 }

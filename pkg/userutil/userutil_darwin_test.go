@@ -22,6 +22,31 @@ import (
 	"gotest.tools/v3/assert"
 )
 
+func TestAddUserCmds(t *testing.T) {
+	const instUser = "alcless_exampleuser_default"
+
+	t.Run("tty", func(t *testing.T) {
+		// "-" makes sysadminctl prompt for the password interactively
+		cmds, err := AddUserCmds(t.Context(), instUser, true)
+		assert.NilError(t, err)
+		assert.Assert(t, len(cmds) > 0)
+		assert.DeepEqual(t, []string{"sudo", "sysadminctl", "-addUser", instUser, "-password", "-"}, cmds[0].Args)
+	})
+
+	t.Run("no-tty", func(t *testing.T) {
+		// Without a tty there is nothing to prompt, so the generated password
+		// has to actually reach sysadminctl
+		cmds, err := AddUserCmds(t.Context(), instUser, false)
+		assert.NilError(t, err)
+		assert.Assert(t, len(cmds) > 0)
+		args := cmds[0].Args
+		assert.DeepEqual(t, []string{"sudo", "sysadminctl", "-addUser", instUser, "-password"}, args[:len(args)-1])
+		pw := args[len(args)-1]
+		assert.Assert(t, pw != "-", "expected a generated password, got the interactive prompt sentinel")
+		assert.Equal(t, 64, len(pw))
+	})
+}
+
 func TestDeleteUserCmds(t *testing.T) {
 	const instUser = "alcless_exampleuser_default"
 	tests := []struct {

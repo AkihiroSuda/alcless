@@ -18,7 +18,7 @@ if [ "$#" -ge 1 ]; then
 	case "$1" in
 	"-h" | "--help")
 		base="$(basename "$0")"
-		echo "Usage: ${base} [COMMAND...]"
+		echo "Usage: ${base} [FLAGS...] [COMMAND...]"
 		echo
 		echo "${base} is an alias for \`alclessctl shell ${ALCLESS_INSTANCE}\`."
 		echo
@@ -35,21 +35,40 @@ if [ "$#" -ge 1 ]; then
 	"-v" | "--version")
 		exec "${ALCLESSCTL}" "$@"
 		;;
-	-*)
-		for f in "$@"; do
-			case "$f" in
-			-*)
-				shift
-				ARGS+=("$f")
-				;;
-			esac
-		done
-		;;
 	"create" | "delete" | "list" | "shell")
 		echo >&2 "WARNING: Perhaps you meant: ${ALCLESSCTL} $1 ..."
 		;;
 	esac
 fi
+
+# Consume the leading flags, so that they can be passed to `alclessctl shell`
+# before the instance name.
+# Parsing stops at the first non-flag argument (or at "--"), as the remaining
+# arguments belong to the command to be executed, e.g. `alcless --plain uname -a`.
+while [ "$#" -ge 1 ]; do
+	case "$1" in
+	"--")
+		shift
+		break
+		;;
+	"--shell" | "--workdir")
+		# These flags take a value as the next argument
+		if [ "$#" -lt 2 ]; then
+			echo >&2 "ERROR: flag needs an argument: $1"
+			exit 1
+		fi
+		ARGS+=("$1" "$2")
+		shift 2
+		;;
+	-*)
+		ARGS+=("$1")
+		shift
+		;;
+	*)
+		break
+		;;
+	esac
+done
 
 if [ -n "${ALCLESS_SHELL}" ]; then
 	ARGS+=("--shell"="${ALCLESS_SHELL}")

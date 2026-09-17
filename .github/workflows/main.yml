@@ -46,6 +46,8 @@ jobs:
       - run: alcless env
       - run: alcless brew install xz
       - run: alcless pwd
+      # https://github.com/AkihiroSuda/alcless/issues/88
+      - run: alcless --plain uname -a
       - run: alcless xz README.md
       - run: ls -l README*
   lint:

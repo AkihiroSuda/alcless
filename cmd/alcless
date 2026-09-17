@@ -71,10 +71,10 @@ while [ "$#" -ge 1 ]; do
 done
 
 if [ -n "${ALCLESS_SHELL}" ]; then
-	ARGS+=("--shell"="${ALCLESS_SHELL}")
+	ARGS+=("--shell=${ALCLESS_SHELL}")
 fi
 if [ -n "${ALCLESS_WORKDIR}" ]; then
-	ARGS+=("--workdir"="${ALCLESS_WORKDIR}")
+	ARGS+=("--workdir=${ALCLESS_WORKDIR}")
 fi
 ARGS+=("${ALCLESS_INSTANCE}")
 ARGS+=("$@")

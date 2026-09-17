@@ -17,9 +17,12 @@
 package create
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os/user"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -97,39 +100,88 @@ func action(cmd *cobra.Command, args []string) error {
 	if err = store.ValidateName(instName); err != nil {
 		return err
 	}
-	instUser := userutil.UserFromInstance(instName)
-	instUserExists, err := userutil.Exists(instUser)
+	inst, err := store.Inspect(ctx, instName)
 	if err != nil {
 		return err
 	}
-	if instUserExists {
-		slog.InfoContext(ctx, "Already exists", "instance", instName, "instUser", instUser)
+	if inst != nil {
+		slog.InfoContext(ctx, "Already exists", "instance", instName, "instUser", inst.User, "home", inst.Home)
+		inst.WarnIfLegacy(ctx)
 	} else {
-		slog.InfoContext(ctx, "Creating an instance", "instance", instName, "instUser", instUser)
-		cmds, err := userutil.AddUserCmds(ctx, instUser, flagTty)
+		uid, instUser, home, err := userutil.Allocate(ctx)
+		if err != nil {
+			return err
+		}
+		label := userutil.LabelFromInstance(instName)
+		slog.InfoContext(ctx, "Creating an instance", "instance", instName, "instUser", instUser, "home", home)
+		cmds, err := userutil.AddUserCmds(ctx, instUser, label, uid, home, flagTty)
 		if err != nil {
 			return err
 		}
 		if err := cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
 			return err
 		}
+		// Record what was actually created, not what was requested: the UID and
+		// the home directory are only *hints* to useradd/sysadminctl, and a
+		// mismatch would later make the instance unresolvable.
+		created, err := user.Lookup(instUser)
+		if err != nil {
+			return fmt.Errorf("failed to look up the just-created user %q: %w", instUser, err)
+		}
+		actualUID, err := strconv.Atoi(created.Uid)
+		if err != nil {
+			return fmt.Errorf("failed to parse the UID %q of the user %q: %w", created.Uid, instUser, err)
+		}
+		if actualUID != uid || created.HomeDir != home {
+			slog.WarnContext(ctx, "The created user does not match what was requested",
+				"instUser", instUser, "requestedUID", uid, "actualUID", actualUID,
+				"requestedHome", home, "actualHome", created.HomeDir)
+			home = created.HomeDir
+		}
+		inst = &store.Instance{
+			Version: store.Version,
+			Name:    instName,
+			User:    instUser,
+			UID:     actualUID,
+			Home:    home,
+		}
+		if err := store.Save(inst); err != nil {
+			return err
+		}
 	}
 	if !flagPlain {
-		if !brew.Supported() {
+		instUser := inst.User
+		switch {
+		case !brew.Supported():
 			slog.WarnContext(ctx, "Homebrew is not supported on this host", "instance", instName, "instUser", instUser)
-		} else if err = brew.Installed(ctx, instUser); err == nil {
-			slog.InfoContext(ctx, "Homebrew is already installed", "instance", instName, "instUser", instUser)
-		} else {
+		default:
+			prefix, err := brew.Installed(ctx, instUser, inst.Home)
+			if err == nil {
+				slog.InfoContext(ctx, "Homebrew is already installed", "instance", instName, "instUser", instUser, "prefix", prefix)
+				break
+			}
 			slog.DebugContext(ctx, "Homebrew is not installed", "instance", instName, "instUser", instUser, "error", err)
+			warnLongPrefix(ctx, brew.Prefix(inst.Home))
 			slog.InfoContext(ctx, "Installing Homebrew (If you are seeing an error, do NOT report it to the upstream Homebrew)", "instance", instName, "instUser", instUser)
 			cmds := brew.InstallCmds(ctx, instUser)
 			if err = cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
 				return err
 			}
-			if err = brew.Installed(ctx, instUser); err != nil {
+			if _, err = brew.Installed(ctx, instUser, inst.Home); err != nil {
 				return fmt.Errorf("failed to detect Homebrew: %w", err)
 			}
 		}
 	}
 	return nil
+}
+
+// warnLongPrefix warns that Homebrew will build the formulae from source,
+// as the prefix is too long for relocating the official bottles.
+func warnLongPrefix(ctx context.Context, prefix string) {
+	max := brew.MaxPrefixLen()
+	if max <= 0 || len(prefix) <= max {
+		return
+	}
+	slog.WarnContext(ctx, "The Homebrew prefix is too long to pour the official bottles, so the formulae will be built from source (slow).",
+		"prefix", prefix, "length", len(prefix), "max", max)
 }

@@ -19,38 +19,81 @@ package brew
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 
 	"github.com/AkihiroSuda/alcless/pkg/sudo"
 )
 
-func InstalledCmd(ctx context.Context, instUser, homeDir string) *exec.Cmd {
-	return sudo.Cmd(ctx, instUser, "", filepath.Join(homeDir, "homebrew/bin/brew"), []string{"--version"})
+const (
+	// Dir is the Homebrew prefix, relative to the home directory of the instance user.
+	//
+	// Deliberately short (not "homebrew"), so that the prefix fits in [MaxPrefixLen].
+	Dir = "h"
+	// LegacyDir is the Homebrew prefix that was used by the older versions of Alcoholless.
+	LegacyDir = "homebrew"
+)
+
+// Prefix returns the Homebrew prefix (HOMEBREW_PREFIX), e.g., "/Users/u502/h".
+func Prefix(homeDir string) string {
+	return filepath.Join(homeDir, Dir)
 }
 
-func Installed(ctx context.Context, instUser string) error {
-	instUserInfo, err := user.Lookup(instUser)
-	if err != nil {
-		return err
+// LegacyPrefix returns the Homebrew prefix used by the older versions of Alcoholless.
+func LegacyPrefix(homeDir string) string {
+	return filepath.Join(homeDir, LegacyDir)
+}
+
+// MaxPrefixLen returns the maximum length of HOMEBREW_PREFIX that still allows
+// pouring the official bottles. A longer prefix makes Homebrew build every
+// formula from source.
+//
+// A bottle can only be relocated to a prefix that is not longer than the prefix
+// it was built for, as the prefix strings are patched in place:
+// https://github.com/Homebrew/brew/blob/HEAD/Library/Homebrew/bottle_specification.rb
+//
+// Returns 0 when the platform is unknown.
+func MaxPrefixLen() int {
+	switch runtime.GOOS {
+	case "darwin":
+		if runtime.GOARCH == "arm64" {
+			return len("/opt/homebrew")
+		}
+		return len("/usr/local")
+	case "linux":
+		return len("/home/linuxbrew/.linuxbrew")
 	}
-	if instUserInfo.HomeDir == "" {
-		return fmt.Errorf("user %q does not have the home directory", instUser)
+	return 0
+}
+
+func InstalledCmd(ctx context.Context, instUser, prefix string) *exec.Cmd {
+	return sudo.Cmd(ctx, instUser, "", filepath.Join(prefix, "bin/brew"), []string{"--version"})
+}
+
+// Installed returns the Homebrew prefix that is already installed for the instance user.
+//
+// [LegacyPrefix] is probed too, so that the instances created by the older
+// versions of Alcoholless keep working.
+func Installed(ctx context.Context, instUser, homeDir string) (string, error) {
+	var errs []error
+	for _, prefix := range []string{Prefix(homeDir), LegacyPrefix(homeDir)} {
+		var stderr bytes.Buffer
+		cmd := InstalledCmd(ctx, instUser, prefix)
+		cmd.Stderr = &stderr
+		slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
+		b, err := cmd.Output()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String()))
+			continue
+		}
+		slog.DebugContext(ctx, "Homebrew has been already installed", "user", instUser, "prefix", prefix, "version", string(b))
+		return prefix, nil
 	}
-	var stderr bytes.Buffer
-	cmd := InstalledCmd(ctx, instUser, instUserInfo.HomeDir)
-	cmd.Stderr = &stderr
-	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
-	b, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String())
-	}
-	slog.DebugContext(ctx, "Homebrew has been already installed", "user", instUser, "version", string(b))
-	return nil
+	return "", fmt.Errorf("failed to detect Homebrew for the user %q: %w", instUser, errors.Join(errs...))
 }
 
 func InstallCmds(ctx context.Context, instUser string) []*exec.Cmd {
@@ -64,8 +107,8 @@ func InstallCmds(ctx context.Context, instUser string) []*exec.Cmd {
 		// https://github.com/AkihiroSuda/alcless/issues/23
 		sudo.Cmd(ctx, instUser, "", "sh", []string{"-c", `echo 'PATH="$(echo "$PATH" | sed -e s@` + systemHomebrewPrefix + `/bin:@@g)"; export PATH' | tee -a "${HOME}/.bash_profile" | tee -a "${HOME}/.bashrc" | tee -a "${HOME}/.zprofile" >> "${HOME}/.zshenv"`}),
 
-		sudo.Cmd(ctx, instUser, "", "git", []string{"clone", "https://github.com/Homebrew/brew", "homebrew"}),
-		sudo.Cmd(ctx, instUser, "", "sh", []string{"-c", `echo 'eval "$("${HOME}/homebrew/bin/brew" shellenv)"' | tee -a "${HOME}/.bash_profile" >> "${HOME}/.zshenv"`}),
+		sudo.Cmd(ctx, instUser, "", "git", []string{"clone", "https://github.com/Homebrew/brew", Dir}),
+		sudo.Cmd(ctx, instUser, "", "sh", []string{"-c", `echo 'eval "$("${HOME}/` + Dir + `/bin/brew" shellenv)"' | tee -a "${HOME}/.bash_profile" >> "${HOME}/.zshenv"`}),
 	}
 	return cmds
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/AkihiroSuda/alcless/pkg/sudo"
@@ -47,6 +48,93 @@ func Users(ctx context.Context) ([]string, error) {
 		}
 	}
 	return res, scanner.Err()
+}
+
+// getentKeyNotFoundExitCode is the exit code getent(1) uses when the requested
+// key does not exist in the database (as opposed to a usage error or an
+// enumeration-not-supported error).
+const getentKeyNotFoundExitCode = 2
+
+func GroupUsers(ctx context.Context, group string) ([]string, error) {
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "getent", "group", group)
+	cmd.Stderr = &stderr
+	slog.DebugContext(ctx, "Running command", "cmd", cmd.Args)
+	b, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == getentKeyNotFoundExitCode {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to run %v: %w (stderr=%q)", cmd.Args, err, stderr.String())
+	}
+	gid, members, err := parseGetentGroup(strings.TrimRight(string(b), "\n"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse getent group output for %q: %w", group, err)
+	}
+
+	var passwdStderr bytes.Buffer
+	passwdCmd := exec.CommandContext(ctx, "getent", "passwd")
+	passwdCmd.Stderr = &passwdStderr
+	slog.DebugContext(ctx, "Running command", "cmd", passwdCmd.Args)
+	passwdOut, err := passwdCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run %v: %w (stderr=%q)", passwdCmd.Args, err, passwdStderr.String())
+	}
+	primary := usersWithPrimaryGID(passwdOut, gid)
+
+	return dedup(append(members, primary...)), nil
+}
+
+// parseGetentGroup parses one line of `getent group <name>` output
+// (`name:password:gid:member1,member2,...`) into the group's gid and its
+// comma-separated (supplementary) member list.
+func parseGetentGroup(line string) (gid string, members []string, err error) {
+	fields := strings.Split(line, ":")
+	if len(fields) < 4 {
+		return "", nil, fmt.Errorf("unexpected getent group entry: %q", line)
+	}
+	gid = fields[2]
+	if fields[3] != "" {
+		members = strings.Split(fields[3], ",")
+	}
+	return gid, members, nil
+}
+
+// usersWithPrimaryGID scans `getent passwd` output
+// (`name:password:uid:gid:gecos:home:shell`) and returns the usernames whose
+// primary group (4th field) equals gid.
+func usersWithPrimaryGID(passwd []byte, gid string) []string {
+	var res []string
+	scanner := bufio.NewScanner(bytes.NewReader(passwd))
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ":")
+		if len(fields) < 4 {
+			continue
+		}
+		if fields[3] == gid {
+			res = append(res, fields[0])
+		}
+	}
+	return res
+}
+
+// dedup returns ss with duplicate elements removed, preserving the order of
+// first occurrence.
+func dedup(ss []string) []string {
+	if ss == nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ss))
+	res := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		res = append(res, s)
+	}
+	return res
 }
 
 func ReadAttribute(_ context.Context, username string, k Attribute) (string, error) {
@@ -110,4 +198,31 @@ func DeleteUserCmds(ctx context.Context, instUser string, opts DeleteOpts) ([]*e
 		exec.CommandContext(ctx, "sudo", userdelArgs...),
 		exec.CommandContext(ctx, "sudo", "rm", "-f", sudoersPath),
 	}, nil
+}
+
+func GroupSetupCmds(ctx context.Context, instUser, groupName string) ([]*exec.Cmd, error) {
+	sudoersContent, err := sudo.Sudoers(instUser)
+	if err != nil {
+		return nil, err
+	}
+	sudoersPath, err := sudo.SudoersPath(instUser)
+	if err != nil {
+		return nil, err
+	}
+
+	cmds := []*exec.Cmd{
+		exec.CommandContext(ctx, "sudo", "chmod", "go-rx", filepath.Join("/home", instUser)),
+		exec.CommandContext(ctx, "sudo", "sh", "-c", fmt.Sprintf("mkdir -p /etc/sudoers.d && echo '%s' >'%s' && chmod 440 '%s'", sudoersContent, sudoersPath, sudoersPath)),
+	}
+
+	if groupName != "" {
+		cmds = append(cmds,
+			// -f: exit success if the group already exists.
+			exec.CommandContext(ctx, "sudo", "groupadd", "-f", groupName),
+			// -aG: append to the supplementary group list; a no-op if the user is already a member.
+			exec.CommandContext(ctx, "sudo", "usermod", "-aG", groupName, instUser),
+		)
+	}
+
+	return cmds, nil
 }

@@ -32,6 +32,10 @@ type Instance struct {
 }
 
 func Instances(ctx context.Context) ([]Instance, error) {
+	if userutil.Mode == "group" {
+		return instancesFromGroup(ctx)
+	}
+
 	users, err := userutil.Users(ctx)
 	if err != nil {
 		return nil, err
@@ -46,6 +50,27 @@ func Instances(ctx context.Context) ([]Instance, error) {
 			return res, err
 		}
 		res = append(res, Instance{Name: instName, User: u})
+	}
+	return res, nil
+}
+
+func instancesFromGroup(ctx context.Context) ([]Instance, error) {
+	group := userutil.GroupName()
+	if group == "" {
+		return nil, fmt.Errorf("ALCLESS_GROUP environment variable is not set")
+	}
+
+	users, err := userutil.GroupUsers(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []Instance
+	for _, u := range users {
+		if err = ValidateName(u); err != nil {
+			continue
+		}
+		res = append(res, Instance{Name: u, User: u})
 	}
 	return res, nil
 }

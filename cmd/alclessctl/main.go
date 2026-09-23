@@ -68,6 +68,10 @@ func newRootCommand() *cobra.Command {
 		Long: `Alcoholless: lightweight sandbox for Homebrew
 
 ⚠️ Do NOT report any issue that happens with Alcoholless to the upstream Homebrew.
+
+Environment Variables:
+  ALCLESS_GROUP   When set, manage user accounts via group membership.
+                  Instance name will be used directly as username.
 `,
 		Example:       example,
 		Version:       version.GetVersion(),

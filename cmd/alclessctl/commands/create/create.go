@@ -32,8 +32,12 @@ import (
 
 func New() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "create [INSTANCE]",
-		Short:                 "Create an instance",
+		Use:   "create [INSTANCE]",
+		Short: "Create an instance",
+		Long: `Create an instance.
+
+By default, tag sandbox user accounts with the prefix alcless_${USER}_.
+When ALCLESS_GROUP environment variable is set, uses the group membership to tag them.`,
 		Args:                  cobra.MaximumNArgs(1),
 		RunE:                  action,
 		DisableFlagsInUseLine: true,
@@ -102,13 +106,34 @@ func action(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	isGroupMode := userutil.Mode == "group"
+
 	if instUserExists {
-		slog.InfoContext(ctx, "Already exists", "instance", instName, "instUser", instUser)
+		if isGroupMode {
+			slog.InfoContext(ctx, "Setting up existing user for alcless", "instance", instName, "instUser", instUser)
+			cmds, err := userutil.GroupSetupCmds(ctx, instUser, userutil.GroupName())
+			if err != nil {
+				return err
+			}
+			if err := cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
+				return err
+			}
+		} else {
+			slog.InfoContext(ctx, "Already exists", "instance", instName, "instUser", instUser)
+		}
 	} else {
 		slog.InfoContext(ctx, "Creating an instance", "instance", instName, "instUser", instUser)
 		cmds, err := userutil.AddUserCmds(ctx, instUser, flagTty)
 		if err != nil {
 			return err
+		}
+		if isGroupMode {
+			setupCmds, err := userutil.GroupSetupCmds(ctx, instUser, userutil.GroupName())
+			if err != nil {
+				return err
+			}
+			cmds = append(cmds, setupCmds...)
 		}
 		if err := cmdutil.RunWithCobra(ctx, cmds, cmd); err != nil {
 			return err

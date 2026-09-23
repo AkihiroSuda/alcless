@@ -18,8 +18,10 @@ package delete
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os/user"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -69,6 +71,15 @@ func action(cmd *cobra.Command, args []string) error {
 	if !instUserExists {
 		slog.WarnContext(ctx, "No such instance", "instance", instName, "instUser", instUser)
 		return nil
+	}
+	if userutil.Mode == "group" {
+		members, err := userutil.GroupUsers(ctx, userutil.GroupName())
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(members, instUser) {
+			return fmt.Errorf("refusing to delete %q: not a member of group %q", instName, userutil.GroupName())
+		}
 	}
 	var instUserHome string
 	if flagKeepHome {

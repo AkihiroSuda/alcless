@@ -164,6 +164,22 @@ To initialize the "default" sandbox (user account `alcless_${USER}_default`):
 alclessctl create default
 ```
 
+### Group mode
+
+By default, tag sandbox user accounts with the prefix `alcless_${USER}_`.
+When ALCLESS_GROUP environment variable is set, uses the group membership to tag them.
+
+This mode supports user accounts set up outside of alcless. Set the `ALCLESS_GROUP` environment variable to enable group mode:
+
+```bash
+export ALCLESS_GROUP=mygroup
+alclessctl create myuser
+```
+
+When `ALCLESS_GROUP` is set:
+- The instance name is used directly as the username (e.g., `myuser` instead of `alcless_${USER}_myuser`)
+- Discovery of instances is done via group membership
+
 To run a command:
 ```
 alclessctl shell default -- brew install xz

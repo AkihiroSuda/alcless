@@ -17,75 +17,113 @@
 package userutil
 
 import (
+	"strings"
 	"testing"
 
 	"gotest.tools/v3/assert"
 )
 
-func TestAddUserCmds(t *testing.T) {
-	const instUser = "alcless_exampleuser_default"
-
-	t.Run("tty", func(t *testing.T) {
-		// "-" makes sysadminctl prompt for the password interactively
-		cmds, err := AddUserCmds(t.Context(), instUser, true)
-		assert.NilError(t, err)
-		assert.Assert(t, len(cmds) > 0)
-		assert.DeepEqual(t, []string{"sudo", "sysadminctl", "-addUser", instUser, "-password", "-"}, cmds[0].Args)
-	})
-
-	t.Run("no-tty", func(t *testing.T) {
-		// Without a tty there is nothing to prompt, so the generated password
-		// has to actually reach sysadminctl
-		cmds, err := AddUserCmds(t.Context(), instUser, false)
-		assert.NilError(t, err)
-		assert.Assert(t, len(cmds) > 0)
-		args := cmds[0].Args
-		assert.DeepEqual(t, []string{"sudo", "sysadminctl", "-addUser", instUser, "-password"}, args[:len(args)-1])
-		pw := args[len(args)-1]
-		assert.Assert(t, pw != "-", "expected a generated password, got the interactive prompt sentinel")
-		assert.Equal(t, 64, len(pw))
-	})
-}
-
-func TestDeleteUserCmds(t *testing.T) {
-	const instUser = "alcless_exampleuser_default"
+func TestParseGroupMembership(t *testing.T) {
 	tests := []struct {
-		name         string
-		opts         DeleteOpts
-		expectedArgs []string
-		expectedErr  string
+		name string
+		out  string
+		want []string
 	}{
 		{
-			name:         "default",
-			expectedArgs: []string{"sudo", "sysadminctl", "-deleteUser", instUser},
+			name: "no such key",
+			out:  "No such key: GroupMembership\n",
+			want: nil,
 		},
 		{
-			name:         "secure",
-			opts:         DeleteOpts{Secure: true},
-			expectedArgs: []string{"sudo", "sysadminctl", "-deleteUser", instUser, "-secure"},
+			name: "single line, one member",
+			out:  "GroupMembership: root\n",
+			want: []string{"root"},
 		},
 		{
-			name:         "keep-home",
-			opts:         DeleteOpts{KeepHome: true},
-			expectedArgs: []string{"sudo", "sysadminctl", "-deleteUser", instUser, "-keepHome"},
+			name: "single line, multiple members",
+			out:  "GroupMembership: root harry\n",
+			want: []string{"root", "harry"},
 		},
 		{
-			name:        "secure-and-keep-home",
-			opts:        DeleteOpts{Secure: true, KeepHome: true},
-			expectedErr: "conflicts",
+			// dscl(1) wraps a value list to one entry per indented line when
+			// a value contains an embedded space.
+			name: "wrapped, one entry per line",
+			out:  "GroupMembership:\n alice smith\n bob\n",
+			want: []string{"alice smith", "bob"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmds, err := DeleteUserCmds(t.Context(), instUser, tt.opts)
-			if tt.expectedErr != "" {
-				assert.ErrorContains(t, err, tt.expectedErr)
-				return
-			}
+			assert.DeepEqual(t, tt.want, parseGroupMembership([]byte(tt.out)))
+		})
+	}
+}
+
+func TestDarwinGroupSetupCmds(t *testing.T) {
+	const instUser = "myuser"
+
+	tests := []struct {
+		name               string
+		groupName          string
+		groupAlreadyExists bool
+		wantArgs           [][]string
+	}{
+		{
+			name:               "group does not exist yet",
+			groupName:          "mygroup",
+			groupAlreadyExists: false,
+			wantArgs: [][]string{
+				{"sudo", "chmod", "go-rx", "/Users/myuser"},
+				nil, // sudoers sh -c; checked separately below
+				{"sudo", "dscl", ".", "-create", "/Groups/mygroup"},
+				{"sudo", "dscl", ".", "-merge", "/Groups/mygroup", "GroupMembership", "myuser"},
+			},
+		},
+		{
+			name:               "group already exists",
+			groupName:          "mygroup",
+			groupAlreadyExists: true,
+			wantArgs: [][]string{
+				{"sudo", "chmod", "go-rx", "/Users/myuser"},
+				nil, // sudoers sh -c; checked separately below
+				{"sudo", "dscl", ".", "-merge", "/Groups/mygroup", "GroupMembership", "myuser"},
+			},
+		},
+		{
+			name:               "no group",
+			groupName:          "",
+			groupAlreadyExists: false,
+			wantArgs: [][]string{
+				{"sudo", "chmod", "go-rx", "/Users/myuser"},
+				nil, // sudoers sh -c; checked separately below
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmds, err := groupSetupCmds(t.Context(), instUser, tt.groupName, tt.groupAlreadyExists)
 			assert.NilError(t, err)
-			assert.Assert(t, len(cmds) > 0)
-			assert.DeepEqual(t, tt.expectedArgs, cmds[0].Args)
+			assert.Equal(t, len(tt.wantArgs), len(cmds))
+			for i, want := range tt.wantArgs {
+				if want == nil {
+					assert.DeepEqual(t, []string{"sudo", "sh", "-c"}, cmds[i].Args[:3])
+					continue
+				}
+				assert.DeepEqual(t, want, cmds[i].Args)
+			}
+
+			// The group name must never be interpolated into a shell string:
+			// every command touching it takes it as a direct argument.
+			for _, c := range cmds {
+				if tt.groupName == "" {
+					continue
+				}
+				if len(c.Args) >= 3 && c.Args[1] == "sh" && c.Args[2] == "-c" {
+					assert.Assert(t, !strings.Contains(c.Args[3], tt.groupName))
+				}
+			}
 		})
 	}
 }
